@@ -4,6 +4,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "X Reels",
   description: "A vertical video feed built from your X timeline",
+  applicationName: "X Reels",
+  appleWebApp: { capable: true, title: "X Reels", statusBarStyle: "black-translucent" },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {
