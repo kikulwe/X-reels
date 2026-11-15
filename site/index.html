@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0e0f12">
+<meta name="referrer" content="no-referrer">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Scraper</title>
@@ -58,7 +59,16 @@
   .dock button { flex: 1; }
   .viewer { position: fixed; inset: 0; background: rgba(0,0,0,.94); display: none; flex-direction: column; z-index: 10; }
   .viewer.open { display: flex; }
-  .viewer img { flex: 1; min-height: 0; object-fit: contain; width: 100%; }
+  .viewer img, .viewer video { flex: 1; min-height: 0; object-fit: contain; width: 100%; background: #000; }
+  .tile video { width: 100%; height: 100%; object-fit: cover; display: block; background: #000; }
+  .tile .play { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; font-size: 26px; color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
+  .tile .dim.hd { background: var(--accent); }
+  .tile .vid-ph { width: 100%; height: 100%; display: grid; place-items: center; color: var(--muted); font-size: 11px; text-align: center; padding: 8px; }
+  .checks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .checks label { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; cursor: pointer; }
+  .checks input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+  .filter { display: flex; gap: 6px; }
+  .filter button.on { background: var(--accent); border-color: var(--accent); }
   .viewer .vbar { display: flex; gap: 8px; padding: 12px 16px calc(env(safe-area-inset-bottom) + 12px); }
   .viewer .vbar button { flex: 1; }
   .viewer .vurl { padding: calc(env(safe-area-inset-top) + 12px) 16px 8px; font-size: 11px; color: var(--muted); word-break: break-all; }
@@ -67,7 +77,7 @@
 <body>
 <header>
   <h1>Scraper</h1>
-  <p>Paste a website link, grab its pictures, save them to your device.</p>
+  <p>Paste a website link, grab its pictures and videos, save them to your device.</p>
 </header>
 
 <form class="panel" id="form">
@@ -77,7 +87,12 @@
   </div>
   <div class="opts">
     <label>Pages to crawl <input type="number" id="pages" value="1" min="1" max="50"></label>
-    <label>Min size (px) <input type="number" id="minpx" value="100" min="0" step="50"></label>
+    <label>Min picture size (px) <input type="number" id="minpx" value="100" min="0" step="50"></label>
+  </div>
+  <div class="checks">
+    <label><input type="checkbox" id="wantImg" checked> Pictures</label>
+    <label><input type="checkbox" id="wantVid" checked> Videos</label>
+    <label><input type="checkbox" id="hdOnly"> HD videos only (720p+)</label>
   </div>
 </form>
 
@@ -85,11 +100,18 @@
 <div class="bar"><i id="prog"></i></div>
 
 <div class="toolbar" id="toolbar" hidden>
-  <span id="count">0 pictures</span>
+  <div class="filter">
+    <button class="ghost on" data-f="all" type="button">All</button>
+    <button class="ghost" data-f="image" type="button">Pictures</button>
+    <button class="ghost" data-f="video" type="button">Videos</button>
+  </div>
   <button class="ghost" id="toggleAll" type="button">Select all</button>
 </div>
+<div class="toolbar" id="toolbar2" hidden style="margin-top:0">
+  <span id="count">0 items</span>
+</div>
 <div class="grid" id="grid"></div>
-<div class="empty" id="empty">No pictures yet.</div>
+<div class="empty" id="empty">Nothing yet.</div>
 
 <div class="dock">
   <button class="ghost" id="clear" type="button">Clear</button>
@@ -99,6 +121,7 @@
 <div class="viewer" id="viewer">
   <div class="vurl" id="vurl"></div>
   <img id="vimg" alt="" referrerpolicy="no-referrer">
+  <video id="vvid" controls playsinline hidden></video>
   <div class="vbar">
     <button class="ghost" id="vclose" type="button">Close</button>
     <button id="vsave" type="button">Save</button>
@@ -231,6 +254,66 @@ function findImages(doc, base, raw) {
   return [...urls];
 }
 
+const VID_RE = /\.(mp4|webm|mov|m4v|m3u8|mpd)(\?|#|$)/i;
+const VID_IN_TEXT = /https?:\\?\/\\?\/(?:[^\s"'<>()\\]|\\\/)+?\.(?:mp4|webm|mov|m4v|m3u8)(?:\?[^\s"'<>()\\]*)?/gi;
+
+function findVideos(doc, base, raw) {
+  const urls = new Set();
+  const add = u => {
+    if (!u || typeof u !== "string") return;
+    u = u.trim().replace(/\\\//g, "/").replace(/&amp;/g, "&");
+    if (!u || u.startsWith("blob:") || u.startsWith("data:")) return;
+    try { const full = new URL(u, base); full.hash = "";
+      if (/^https?:$/.test(full.protocol)) urls.add(full.href); } catch {}
+  };
+  doc.querySelectorAll("video, video source, audio source").forEach(el => {
+    for (const a of el.attributes)
+      if (a.name === "src" || (/^data-/i.test(a.name) && VID_RE.test(a.value))) add(a.value);
+  });
+  doc.querySelectorAll('meta[property^="og:video"], meta[name="twitter:player:stream"]').forEach(m => {
+    const c = m.getAttribute("content"); if (c && /^(https?:)?\/\//.test(c) && !/\.(html?|php)(\?|$)/i.test(c)) add(c);
+  });
+  doc.querySelectorAll("*").forEach(el => {
+    for (const a of el.attributes)
+      if ((/^data-/i.test(a.name) || a.name === "href" || a.name === "content") && VID_RE.test(a.value)) add(a.value);
+  });
+  if (raw) for (const m of raw.matchAll(VID_IN_TEXT)) add(m[0]);
+  return [...urls];
+}
+
+const isStream = u => /\.(m3u8|mpd)(\?|#|$)/i.test(u);
+const qualityLabel = h => !h ? "?" : h >= 2160 ? "4K" : h >= 1440 ? "1440p" : h >= 1080 ? "1080p" : h >= 720 ? "720p" : `${h}p`;
+// Guess quality from the URL when the browser can't read it (e.g. "..._1080p.mp4", "/720/")
+const urlHeight = u => { const m = u.match(/(?:^|[^\d])(2160|1440|1080|720|540|480|360|240)p?(?:[^\d]|$)/); return m ? +m[1] : 0; };
+
+function addVideo(src, page) {
+  if (tried.has(src)) return;
+  tried.add(src);
+  stats.vfound++;
+  const hdOnly = $("hdOnly").checked;
+  const keep = (w, h, note) => {
+    if (hdOnly && h && h < 720) { stats.vlow++; return; }
+    const item = { type: "video", src, view: src, page, w, h, note };
+    state.images.push(item);
+    render(item);
+  };
+  if (isStream(src)) { // HLS/DASH streams play in pieces; can't be saved as one file here
+    const h = urlHeight(src);
+    if (hdOnly && h && h < 720) { stats.vlow++; return showSummary(); }
+    stats.vstream++; keep(0, h, "stream");
+    return showSummary();
+  }
+  stats.pending++;
+  const v = document.createElement("video");
+  v.preload = "metadata"; v.muted = true;
+  let doneFlag = false;
+  const finish = () => { if (doneFlag) return; doneFlag = true; stats.pending--; v.removeAttribute("src"); v.load(); showSummary(); };
+  v.onloadedmetadata = () => { keep(v.videoWidth, v.videoHeight || urlHeight(src)); finish(); };
+  v.onerror = () => { keep(0, urlHeight(src), "unknown"); finish(); }; // still list it; it may download fine
+  setTimeout(() => { if (!doneFlag) { keep(0, urlHeight(src), "unknown"); finish(); } }, 15000);
+  v.src = src;
+}
+
 function findLinks(doc, base, host) {
   const out = [];
   doc.querySelectorAll("a[href]").forEach(a => {
@@ -240,7 +323,7 @@ function findLinks(doc, base, host) {
   return out;
 }
 
-const stats = { found: 0, pending: 0, small: 0, failed: 0, crawling: false, pages: 0, pageFails: 0, lastErr: "" };
+const stats = { found: 0, pending: 0, small: 0, failed: 0, vfound: 0, vlow: 0, vstream: 0, crawling: false, pages: 0, pageFails: 0, lastErr: "" };
 const tried = new Set();
 
 function addImage(src, page) {
@@ -253,7 +336,7 @@ function addImage(src, page) {
   const finish = () => { stats.pending--; showSummary(); };
   probe.onload = () => {
     if (probe.naturalWidth < minpx && probe.naturalHeight < minpx) { stats.small++; return finish(); }
-    const item = { src, view: probe.src, page, w: probe.naturalWidth, h: probe.naturalHeight };
+    const item = { type: "image", src, view: probe.src, page, w: probe.naturalWidth, h: probe.naturalHeight };
     state.images.push(item);
     render(item);
     finish();
@@ -271,19 +354,34 @@ function showSummary() {
   const n = state.images.length, ok = stats.pages - stats.pageFails;
   if (!stats.pages) return;
   if (!ok) return setStatus(`Couldn't load the site. ${stats.lastErr}`, true);
-  const parts = [`${stats.found} found on ${ok} page${ok === 1 ? "" : "s"}`, `${n} shown`];
-  if (stats.small) parts.push(`${stats.small} smaller than ${$("minpx").value}px skipped`);
+  const imgs = state.images.filter(i => i.type === "image").length, vids = n - imgs;
+  const parts = [`${ok} page${ok === 1 ? "" : "s"}`];
+  if ($("wantImg").checked) parts.push(`${imgs}/${stats.found} pictures shown`);
+  if (stats.small) parts.push(`${stats.small} small skipped`);
   if (stats.failed) parts.push(`${stats.failed} wouldn't load`);
+  if ($("wantVid").checked) parts.push(`${vids}/${stats.vfound} videos shown`);
+  if (stats.vlow) parts.push(`${stats.vlow} below 720p hidden`);
   if (stats.pending) parts.push(`${stats.pending} still checking…`);
   setStatus(parts.join(" · "), !n && !stats.pending);
 }
 
 function render(item) {
   $("empty").hidden = true; $("toolbar").hidden = false;
+  $("toolbar2").hidden = false;
   const t = document.createElement("div");
   t.className = "tile";
-  t.innerHTML = `<img loading="lazy" referrerpolicy="no-referrer" alt=""><span class="chk">✓</span><span class="dim">${item.w}×${item.h}</span>`;
-  t.querySelector("img").src = item.view;
+  if (item.type === "video") {
+    const q = item.note === "stream" ? `Stream ${item.h ? qualityLabel(item.h) : ""}` : qualityLabel(item.h);
+    const hd = item.h >= 720;
+    t.innerHTML = item.note === "stream"
+      ? `<div class="vid-ph">▶︎ Live stream<br>(view only)</div><span class="chk">✓</span><span class="dim">${q}</span>`
+      : `<video muted playsinline preload="metadata"></video><span class="play">▶︎</span><span class="chk">✓</span><span class="dim${hd ? " hd" : ""}">${q}${hd ? " HD" : ""}</span>`;
+    const ve = t.querySelector("video"); if (ve) ve.src = item.src + "#t=0.5";
+  } else {
+    t.innerHTML = `<img loading="lazy" referrerpolicy="no-referrer" alt=""><span class="chk">✓</span><span class="dim">${item.w}×${item.h}</span>`;
+    t.querySelector("img").src = item.view;
+  }
+  if (filter !== "all" && filter !== item.type) t.hidden = true;
   t.querySelector(".chk").onclick = e => { e.stopPropagation(); toggle(item, t); };
   t.onclick = () => openViewer(item);
   item.el = t;
@@ -297,25 +395,36 @@ function toggle(item, el) {
   updateCount();
 }
 
+let filter = "all";
+const visible = () => state.images.filter(i => filter === "all" || i.type === filter);
+
 function updateCount() {
-  const n = state.images.length, s = state.selected.size;
-  $("count").textContent = `${n} picture${n === 1 ? "" : "s"}${s ? ` · ${s} selected` : ""}`;
+  const imgs = state.images.filter(i => i.type === "image").length, vids = state.images.length - imgs;
+  const s = state.selected.size, vis = visible();
+  $("count").textContent = `${imgs} picture${imgs === 1 ? "" : "s"} · ${vids} video${vids === 1 ? "" : "s"}${s ? ` · ${s} selected` : ""}`;
   $("save").disabled = !s;
   $("save").textContent = s ? `Save ${s}` : "Save selected";
-  $("toggleAll").textContent = s === n && n ? "Select none" : "Select all";
+  $("toggleAll").textContent = vis.length && vis.every(i => state.selected.has(i)) ? "Select none" : "Select all";
 }
 
 $("toggleAll").onclick = () => {
-  const all = state.selected.size !== state.images.length;
-  state.selected.clear();
-  state.images.forEach(i => { if (all) state.selected.add(i); i.el.classList.toggle("sel", all); });
+  const vis = visible();
+  const all = !vis.every(i => state.selected.has(i));
+  vis.forEach(i => { all ? state.selected.add(i) : state.selected.delete(i); i.el.classList.toggle("sel", all); });
   updateCount();
 };
 
+document.querySelectorAll(".filter button").forEach(b => b.onclick = () => {
+  filter = b.dataset.f;
+  document.querySelectorAll(".filter button").forEach(x => x.classList.toggle("on", x === b));
+  state.images.forEach(i => { i.el.hidden = filter !== "all" && filter !== i.type; });
+  updateCount();
+});
+
 $("clear").onclick = () => {
   state.images = []; state.selected.clear(); $("grid").innerHTML = ""; tried.clear();
-  Object.assign(stats, { found: 0, pending: 0, small: 0, failed: 0, pages: 0, pageFails: 0 });
-  $("empty").hidden = false; $("toolbar").hidden = true; setStatus(""); setProg(0); updateCount();
+  Object.assign(stats, { found: 0, pending: 0, small: 0, failed: 0, vfound: 0, vlow: 0, vstream: 0, pages: 0, pageFails: 0 });
+  $("empty").hidden = false; $("toolbar").hidden = true; $("toolbar2").hidden = true; setStatus(""); setProg(0); updateCount();
 };
 
 $("form").onsubmit = async e => {
@@ -337,7 +446,8 @@ $("form").onsubmit = async e => {
       try {
         const html = await getPageHtml(page);
         const doc = new DOMParser().parseFromString(html, "text/html");
-        findImages(doc, page, html).forEach(src => addImage(src, page));
+        if ($("wantVid").checked) findVideos(doc, page, html).forEach(src => addVideo(src, page));
+        if ($("wantImg").checked) findImages(doc, page, html).forEach(src => addImage(src, page));
         findLinks(doc, page, host).forEach(l => { if (!seen.has(l)) { seen.add(l); queue.push(l); } });
       } catch (err) { stats.pageFails++; stats.lastErr = err.message; }
       done++; stats.pages = done; setProg(done / maxPages);
@@ -346,8 +456,20 @@ $("form").onsubmit = async e => {
   } finally { state.busy = false; $("go").disabled = false; }
 };
 
+async function getVideoBlob(src) {
+  const tries = [
+    () => fetchT(src, {}, 120000),
+    () => fetchT(`https://api.codetabs.com/v1/proxy?quest=${enc(src)}`, {}, 180000),
+    () => fetchT(`https://api.allorigins.win/raw?url=${enc(src)}`, {}, 180000),
+  ];
+  for (const t of tries) {
+    try { const b = await (await t()).blob(); if (b.size > 10000 && !/text|html|json/.test(b.type)) return b.type ? b : new Blob([b], { type: "video/mp4" }); } catch {}
+  }
+  throw new Error("download failed");
+}
+
 function fileName(src, blob, i) {
-  let name = decodeURIComponent(new URL(src).pathname.split("/").pop() || "image").replace(/[^\w.-]/g, "_").slice(0, 60);
+  let name = decodeURIComponent(new URL(src).pathname.split("/").pop() || "file").replace(/[^\w.-]/g, "_").slice(0, 60);
   if (!/\.\w{2,5}$/.test(name)) name += "." + ((blob.type.split("/")[1] || "jpg").replace("jpeg", "jpg").replace("svg+xml", "svg"));
   return i != null ? `${String(i + 1).padStart(3, "0")}_${name}` : name;
 }
@@ -360,17 +482,29 @@ function downloadBlob(blob, name) {
 }
 
 async function saveItems(items) {
-  const files = [];
+  const files = [], blocked = [];
   for (let i = 0; i < items.length; i++) {
-    setStatus(`Downloading ${i + 1}/${items.length}…`); setProg((i + 1) / items.length);
-    try { const b = await getImageBlob(items[i].src); files.push(new File([b], fileName(items[i].src, b, items.length > 1 ? i : null), { type: b.type })); }
-    catch {}
+    const it = items[i];
+    setStatus(`Downloading ${i + 1}/${items.length}${it.type === "video" ? " (video, may take a while)" : ""}…`); setProg((i + 1) / items.length);
+    if (it.note === "stream") { blocked.push(it); continue; }
+    try {
+      const b = it.type === "video" ? await getVideoBlob(it.src) : await getImageBlob(it.src);
+      files.push(new File([b], fileName(it.src, b, items.length > 1 ? i : null), { type: b.type }));
+    } catch { if (it.type === "video") blocked.push(it); }
   }
-  if (!files.length) return setStatus("Couldn't download those pictures.", true);
+  // Videos the relays couldn't fetch: open the first directly so the browser's own download/save can take it
+  const streams = blocked.filter(i => i.note === "stream"), direct = blocked.filter(i => i.note !== "stream");
+  let blockedNote = "";
+  if (direct.length) {
+    blockedNote += ` ${direct.length} video${direct.length > 1 ? "s" : ""} couldn't be fetched here — opened ${direct.length > 1 ? "the first " : ""}in a new tab: use ⋯ / long-press → Download.`;
+    window.open(direct[0].src, "_blank", "noopener");
+  }
+  if (streams.length) blockedNote += ` ${streams.length} live stream${streams.length > 1 ? "s" : ""} can't be saved.`;
+  if (!files.length) return setStatus(`Couldn't download those.${blockedNote}`, true);
 
   // Phones: share sheet lets you "Save to Photos"/"Save Image"
   if (navigator.canShare && navigator.canShare({ files }) && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
-    try { await navigator.share({ files }); setStatus(`Shared ${files.length} picture(s).`); return; }
+    try { await navigator.share({ files }); setStatus(`Shared ${files.length} file(s).${blockedNote}`); return; }
     catch (e) { if (e.name === "AbortError") return setStatus("Cancelled."); }
   }
   if (files.length === 1) { downloadBlob(files[0], files[0].name); }
@@ -379,16 +513,24 @@ async function saveItems(items) {
     files.forEach(f => zip.file(f.name, f));
     setStatus("Zipping…");
     const host = new URL(items[0].page).host.replace(/[^\w.-]/g, "_");
-    downloadBlob(await zip.generateAsync({ type: "blob" }), `${host}_images.zip`);
+    downloadBlob(await zip.generateAsync({ type: "blob" }), `${host}_media.zip`);
   }
-  setStatus(`Saved ${files.length} picture(s)${files.length < items.length ? ` (${items.length - files.length} failed)` : ""}.`);
+  const failed = items.length - files.length - blocked.length;
+  setStatus(`Saved ${files.length} file(s)${failed > 0 ? ` (${failed} failed)` : ""}.${blockedNote}`);
 }
 
 $("save").onclick = async () => { $("save").disabled = true; await saveItems([...state.selected]); updateCount(); };
 
 let viewing = null;
-function openViewer(item) { viewing = item; $("vimg").src = item.view; $("vurl").textContent = item.src; $("viewer").classList.add("open"); }
-$("vclose").onclick = () => $("viewer").classList.remove("open");
+function openViewer(item) {
+  viewing = item;
+  const isVid = item.type === "video";
+  $("vimg").hidden = isVid; $("vvid").hidden = !isVid;
+  if (isVid) { $("vvid").src = item.src; $("vvid").play().catch(() => {}); } else $("vimg").src = item.view;
+  $("vurl").textContent = item.src + (isVid && item.h ? `  ·  ${qualityLabel(item.h)}` : "");
+  $("viewer").classList.add("open");
+}
+$("vclose").onclick = () => { $("vvid").pause(); $("vvid").removeAttribute("src"); $("viewer").classList.remove("open"); };
 $("vsave").onclick = () => viewing && saveItems([viewing]);
 
 function localStorageSafe(k, v) { try { v === undefined ? (v = localStorage.getItem(k)) : localStorage.setItem(k, v); } catch {} return v; }

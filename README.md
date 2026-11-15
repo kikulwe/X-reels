@@ -1,6 +1,6 @@
 # Site Scraper
 
-Crawl a website, extract data with CSS selectors, and download its pictures to your computer.
+Crawl a website and download its pictures and HD videos. The Python version also extracts data with CSS selectors.
 
 > This repo previously held the X Reels app. Its code is still in the git history.
 
@@ -8,12 +8,12 @@ Crawl a website, extract data with CSS selectors, and download its pictures to y
 
 **https://kikulwe.github.io/X-reels/**
 
-Paste a link → tap **Scrape** → tick pictures → **Save**. On a phone, Save opens the share sheet
+Paste a link → tap **Scrape** → tick pictures/videos → **Save**. Tick **HD videos only** to hide anything below 720p; each video shows its resolution (360p, 720p HD, 1080p HD, 4K). On a phone, Save opens the share sheet
 (choose *Save to Photos* / *Save image*); on a computer, one picture downloads directly and several
 download as a ZIP. Add it to your home screen to use it like an app.
 
 The web app fetches pages through Jina Reader (renders JavaScript) and images through wsrv.nl, with public CORS proxies as backup,
-so very large or protected sites may fail. For big jobs use the Python version below.
+so very large or protected sites may fail. Live streams (.m3u8) and videos on YouTube/TikTok/Instagram can't be saved. For big jobs use the Python version below.
 
 Code is in `site/`; pushes to `main` deploy automatically via `.github/workflows/pages.yml`.
 
