@@ -1,0 +1,47 @@
+name: Build feed and deploy to GitHub Pages
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"   # every 6 hours (UTC). Each run reads from the X API and costs credits.
+  workflow_dispatch:          # "Run workflow" button in the Actions tab
+  push:
+    branches: [main]
+    paths: [site/**, scripts/**, .github/workflows/pages.yml]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build feed.json from the X API
+        env:
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+          X_USERNAME: ${{ vars.X_USERNAME }}
+          MAX_RESULTS_PER_QUERY: ${{ vars.MAX_RESULTS_PER_QUERY }}
+          MAX_QUERIES_PER_RUN: ${{ vars.MAX_QUERIES_PER_RUN }}
+          PREVIOUS_FEED_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/feed.json
+        run: node scripts/build-feed.mjs
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

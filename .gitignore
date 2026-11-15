@@ -1,6 +1,5 @@
-node_modules
-.next
-.env
-.env.local
-*.tsbuildinfo
-next-env.d.ts
+node_modules/
+.env*
+!.env.example
+site/feed.json
+.DS_Store
