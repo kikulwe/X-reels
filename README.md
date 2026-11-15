@@ -8,7 +8,7 @@ Crawl a website and download its pictures and HD videos. The Python version also
 
 **https://kikulwe.github.io/X-reels/**
 
-Paste a link → tap **Scrape** → tick pictures/videos → **Save**. Tick **HD videos only** to hide anything below 720p; each video shows its resolution (360p, 720p HD, 1080p HD, 4K). On a phone, Save opens the share sheet
+Paste a link → tap **Scrape** (it keeps visiting same-site pages, pagination first, until it has **Pictures wanted** — 100 by default — or hits **Max pages**) → tick pictures/videos → **Save**. Tick **HD videos only** to hide anything below 720p; each video shows its resolution (360p, 720p HD, 1080p HD, 4K). On a phone, Save opens the share sheet
 (choose *Save to Photos* / *Save image*); on a computer, one picture downloads directly and several
 download as a ZIP. Add it to your home screen to use it like an app.
 

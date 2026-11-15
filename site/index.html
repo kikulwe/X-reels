@@ -34,7 +34,7 @@
   button:active { background: var(--accent-2); }
   button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
   button:disabled { opacity: .45; }
-  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .opts { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 12px; }
   .opts label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   .opts input { padding: 9px 12px; font-size: 15px; }
   .status { margin: 0 16px; min-height: 20px; color: var(--muted); font-size: 13px; }
@@ -85,8 +85,9 @@
     <button id="go" type="submit">Scrape</button>
   </div>
   <div class="opts">
-    <label>Pages to crawl <input type="number" id="pages" value="1" min="1" max="50"></label>
-    <label>Min picture size (px) <input type="number" id="minpx" value="100" min="0" step="50"></label>
+    <label>Pictures wanted <input type="number" id="target" value="100" min="1" max="1000"></label>
+    <label>Max pages <input type="number" id="pages" value="30" min="1" max="100"></label>
+    <label>Min size (px) <input type="number" id="minpx" value="100" min="0" step="50"></label>
   </div>
   <div class="checks">
     <label><input type="checkbox" id="wantImg" checked> Pictures</label>
@@ -313,17 +314,29 @@ function addVideo(src, page) {
   v.src = src;
 }
 
+const SKIP_LINK = /\/(login|signin|sign-in|register|signup|cart|checkout|account|privacy|terms|cookie|contact|logout|wp-admin|feed)(\/|$|\?)|^mailto:|\.(pdf|zip|rar|exe|dmg|apk|xml|rss|css|js|jpe?g|png|gif|webp|avif|mp4|webm|mov|m3u8)(\?|$)/i;
+const GOOD_LINK = /(page|gallery|galler|photo|image|picture|album|post|article|wallpaper|portfolio|collection|product|item|shop|catalog|category|next)/i;
+
 function findLinks(doc, base, host) {
   const out = [];
   doc.querySelectorAll("a[href]").forEach(a => {
     try { const u = new URL(a.getAttribute("href"), base); u.hash = "";
-      if (u.host === host && /^https?:$/.test(u.protocol)) out.push(u.href); } catch {}
+      if (u.host !== host || !/^https?:$/.test(u.protocol) || SKIP_LINK.test(u.href)) return;
+      const txt = (a.textContent || "") + " " + (a.getAttribute("rel") || "") + " " + (a.getAttribute("aria-label") || "");
+      let score = 0;
+      if (/next|more|older|›|»|load/i.test(txt) || a.getAttribute("rel") === "next") score += 6;  // pagination first
+      if (/[?&](page|p|pg|offset|start)=\d+|\/page\/\d+/i.test(u.href)) score += 6;
+      if (GOOD_LINK.test(u.pathname)) score += 1;
+      if (a.querySelector("img")) score += 2;  // thumbnail links usually lead to more pictures
+      out.push({ href: u.href, score });
+    } catch {}
   });
   return out;
 }
 
-const stats = { found: 0, pending: 0, small: 0, failed: 0, vfound: 0, vlow: 0, vstream: 0, crawling: false, pages: 0, pageFails: 0, lastErr: "" };
+const stats = { found: 0, pending: 0, small: 0, failed: 0, extra: 0, vfound: 0, vlow: 0, vstream: 0, crawling: false, pages: 0, pageFails: 0, lastErr: "" };
 const tried = new Set();
+const run = { target: 100, added: 0 };
 
 function addImage(src, page) {
   if (tried.has(src)) return;
@@ -335,6 +348,8 @@ function addImage(src, page) {
   const finish = () => { stats.pending--; showSummary(); };
   probe.onload = () => {
     if (probe.naturalWidth < minpx && probe.naturalHeight < minpx) { stats.small++; return finish(); }
+    if (run.added >= run.target) { stats.extra++; return finish(); }
+    run.added++; setProg(run.added / run.target);
     const item = { type: "image", src, view: probe.src, page, w: probe.naturalWidth, h: probe.naturalHeight };
     state.images.push(item);
     render(item);
@@ -355,13 +370,17 @@ function showSummary() {
   if (!ok) return setStatus(`Couldn't load the site. ${stats.lastErr}`, true);
   const imgs = state.images.filter(i => i.type === "image").length, vids = n - imgs;
   const parts = [`${ok} page${ok === 1 ? "" : "s"}`];
-  if ($("wantImg").checked) parts.push(`${imgs}/${stats.found} pictures shown`);
+  if ($("wantImg").checked) {
+    parts.push(run.added >= run.target ? `✓ ${run.added}/${run.target} pictures` : `${run.added}/${run.target} pictures${stats.pending ? "" : " (site ran out — raise Max pages or lower Min size)"}`);
+    if (stats.extra) parts.push(`${stats.extra} extra not shown`);
+  }
   if (stats.small) parts.push(`${stats.small} small skipped`);
   if (stats.failed) parts.push(`${stats.failed} wouldn't load`);
   if ($("wantVid").checked) parts.push(`${vids}/${stats.vfound} videos shown`);
   if (stats.vlow) parts.push(`${stats.vlow} below 720p hidden`);
   if (stats.pending) parts.push(`${stats.pending} still checking…`);
   setStatus(parts.join(" · "), !n && !stats.pending);
+  updateCount();
 }
 
 function render(item) {
@@ -422,7 +441,7 @@ document.querySelectorAll(".filter button").forEach(b => b.onclick = () => {
 
 $("clear").onclick = () => {
   state.images = []; state.selected.clear(); $("grid").innerHTML = ""; tried.clear();
-  Object.assign(stats, { found: 0, pending: 0, small: 0, failed: 0, vfound: 0, vlow: 0, vstream: 0, pages: 0, pageFails: 0 });
+  Object.assign(stats, { found: 0, pending: 0, small: 0, failed: 0, extra: 0, vfound: 0, vlow: 0, vstream: 0, pages: 0, pageFails: 0 });
   $("empty").hidden = false; $("toolbar").hidden = true; $("toolbar2").hidden = true; setStatus(""); setProg(0); updateCount();
 };
 
@@ -432,27 +451,43 @@ $("form").onsubmit = async e => {
   let start = $("url").value.trim();
   if (!/^https?:\/\//i.test(start)) start = "https://" + start;
   const host = new URL(start).host;
-  const maxPages = Math.min(50, Math.max(1, +$("pages").value || 1));
-  const queue = [start], seen = new Set(queue);
-  let done = 0;
-  Object.assign(stats, { crawling: true, pages: 0, pageFails: 0, lastErr: "" });
+  const maxPages = Math.min(100, Math.max(1, +$("pages").value || 1));
+  Object.assign(run, { target: Math.max(1, +$("target").value || 100), added: 0 });
+  Object.assign(stats, { crawling: true, pages: 0, pageFails: 0, lastErr: "", found: 0, small: 0, failed: 0, extra: 0, vfound: 0, vlow: 0, vstream: 0 });
   state.images.forEach(i => tried.add(i.src));
+  const wantImg = $("wantImg").checked;
+  const queue = [{ href: start, score: 99 }], seen = new Set([start]);
+  let done = 0;
+  const enough = () => wantImg && run.added >= run.target;
+  const waitProbes = async () => { for (let i = 0; i < 40 && stats.pending > 0; i++) await new Promise(r => setTimeout(r, 250)); };
+
+  const crawlPage = async page => {
+    try {
+      for (const html of await getPageHtmls(page)) {
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        if ($("wantVid").checked) findVideos(doc, page, html).forEach(src => addVideo(src, page));
+        if (wantImg) findImages(doc, page, html).forEach(src => addImage(src, page));
+        findLinks(doc, page, host).forEach(l => { if (!seen.has(l.href)) { seen.add(l.href); queue.push(l); } });
+      }
+    } catch (err) { stats.pageFails++; stats.lastErr = err.message; }
+    done++; stats.pages = done;
+  };
+
   state.busy = true; $("go").disabled = true;
   localStorageSafe("lastUrl", start);
   try {
-    while (queue.length && done < maxPages) {
-      const page = queue.shift();
-      setStatus(`Fetching ${done + 1}/${maxPages}: ${page}`);
-      try {
-        for (const html of await getPageHtmls(page)) {
-          const doc = new DOMParser().parseFromString(html, "text/html");
-          if ($("wantVid").checked) findVideos(doc, page, html).forEach(src => addVideo(src, page));
-          if ($("wantImg").checked) findImages(doc, page, html).forEach(src => addImage(src, page));
-          findLinks(doc, page, host).forEach(l => { if (!seen.has(l)) { seen.add(l); queue.push(l); } });
-        }
-      } catch (err) { stats.pageFails++; stats.lastErr = err.message; }
-      done++; stats.pages = done; setProg(done / maxPages);
+    // Keep visiting same-site pages (pagination and gallery links first) until we
+    // have the pictures wanted, the site runs out, or Max pages is reached.
+    while (queue.length && done < maxPages && !enough()) {
+      queue.sort((x, y) => y.score - x.score);
+      // optimistic: pictures still being checked will probably count
+      const room = maxPages - done, batch = queue.splice(0, Math.min(3, room));
+      setStatus(`Page ${done + 1}–${done + batch.length} of up to ${maxPages}${wantImg ? ` · ${run.added}/${run.target} pictures` : ""}…`);
+      await Promise.all(batch.map(b => crawlPage(b.href)));
+      if (!(run.added + stats.pending >= run.target)) continue;
+      await waitProbes();  // let pending checks finish before deciding we're done
     }
+    await waitProbes();
     stats.crawling = false; showSummary();
   } finally { state.busy = false; $("go").disabled = false; }
 };
