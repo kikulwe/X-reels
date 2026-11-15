@@ -12,7 +12,7 @@ Paste a link → tap **Scrape** → tick pictures → **Save**. On a phone, Save
 (choose *Save to Photos* / *Save image*); on a computer, one picture downloads directly and several
 download as a ZIP. Add it to your home screen to use it like an app.
 
-The web app fetches sites through free public CORS proxies (browsers can't read other sites directly),
+The web app fetches pages through Jina Reader (renders JavaScript) and images through wsrv.nl, with public CORS proxies as backup,
 so very large or protected sites may fail. For big jobs use the Python version below.
 
 Code is in `site/`; pushes to `main` deploy automatically via `.github/workflows/pages.yml`.

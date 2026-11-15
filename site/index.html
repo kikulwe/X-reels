@@ -106,30 +106,66 @@
 </div>
 
 <script>
-// Browsers can't read other websites directly (CORS), so pages and image bytes
-// go through free public CORS proxies. If one is down we try the next.
-const PROXIES = [
-  u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
-  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-  u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-];
-let goodProxy = 0;
+// Browsers can't read other websites directly (CORS), so we go through free
+// services that allow it:
+//  - pages: Jina Reader (renders JavaScript too), then public CORS proxies as backup
+//  - images: wsrv.nl image proxy, then a CORS proxy as backup
+const enc = encodeURIComponent;
 
-async function proxied(url, asBlob) {
-  let lastErr;
-  for (let i = 0; i < PROXIES.length; i++) {
-    const idx = (goodProxy + i) % PROXIES.length;
+async function fetchT(url, opts = {}, ms = 30000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const r = await fetch(url, { ...opts, signal: ctrl.signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r;
+  } catch (e) { throw e.name === "AbortError" ? new Error("timed out") : e; }
+  finally { clearTimeout(t); }
+}
+
+// Turn Jina's markdown into minimal HTML so the same parser works
+function mdToHtml(md) {
+  let html = "";
+  for (const m of md.matchAll(/!\[[^\]]*\]\((\S+?)(?:\s+"[^"]*")?\)/g)) html += `<img src="${m[1]}">`;
+  for (const m of md.matchAll(/(?<!!)\[[^\]]*\]\((\S+?)(?:\s+"[^"]*")?\)/g)) html += `<a href="${m[1]}"></a>`;
+  return `<html><body>${html}</body></html>`;
+}
+
+const PAGE_SOURCES = [
+  ["Jina (rendered)", u => fetchT(`https://r.jina.ai/${u}`, { headers: { "X-Return-Format": "html" } }, 45000).then(r => r.text())],
+  ["Jina (markdown)", u => fetchT(`https://r.jina.ai/${u}`, {}, 45000).then(r => r.text()).then(mdToHtml)],
+  ["AllOrigins", u => fetchT(`https://api.allorigins.win/raw?url=${enc(u)}`).then(r => r.text())],
+  ["CodeTabs", u => fetchT(`https://api.codetabs.com/v1/proxy?quest=${enc(u)}`).then(r => r.text())],
+];
+let goodSource = 0;
+
+async function getPageHtml(url) {
+  const errs = [];
+  for (let i = 0; i < PAGE_SOURCES.length; i++) {
+    const idx = (goodSource + i) % PAGE_SOURCES.length;
+    const [name, get] = PAGE_SOURCES[idx];
     try {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 20000);
-      const r = await fetch(PROXIES[idx](url), { signal: ctrl.signal });
-      clearTimeout(t);
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      goodProxy = idx;
-      return asBlob ? await r.blob() : await r.text();
-    } catch (e) { lastErr = e; }
+      const html = await get(url);
+      if (!html || html.length < 50) throw new Error("empty response");
+      goodSource = idx;
+      return html;
+    } catch (e) { errs.push(`${name}: ${e.message}`); }
   }
-  throw lastErr || new Error("All proxies failed");
+  throw new Error(errs.join(" · "));
+}
+
+const imgProxy = src => `https://wsrv.nl/?url=${enc(src)}`;
+
+async function getImageBlob(src) {
+  const tries = [
+    () => fetchT(src, { referrerPolicy: "no-referrer" }, 15000),
+    () => fetchT(imgProxy(src)),
+    () => fetchT(`https://api.codetabs.com/v1/proxy?quest=${enc(src)}`),
+  ];
+  for (const t of tries) {
+    try { const b = await (await t()).blob(); if (b.type.startsWith("image/") && b.size) return b; } catch {}
+  }
+  throw new Error("download failed");
 }
 
 const $ = id => document.getElementById(id);
@@ -175,14 +211,14 @@ function addImage(src, page) {
   probe.onload = () => {
     if (probe.naturalWidth < minpx && probe.naturalHeight < minpx) return;
     if (state.images.some(i => i.src === src)) return;
-    const item = { src, page, w: probe.naturalWidth, h: probe.naturalHeight };
+    const item = { src, view: probe.src, page, w: probe.naturalWidth, h: probe.naturalHeight };
     state.images.push(item);
     render(item);
   };
-  probe.onerror = () => { // hotlink-blocked? try through proxy
+  probe.onerror = () => { // hotlink-blocked? load through the image proxy
     if (probe.dataset.retried) return;
     probe.dataset.retried = 1;
-    proxied(src, true).then(b => { if (b.type.startsWith("image/")) probe.src = URL.createObjectURL(b); }).catch(() => {});
+    probe.src = imgProxy(src);
   };
   probe.src = src;
 }
@@ -192,7 +228,7 @@ function render(item) {
   const t = document.createElement("div");
   t.className = "tile";
   t.innerHTML = `<img loading="lazy" referrerpolicy="no-referrer" alt=""><span class="chk">✓</span><span class="dim">${item.w}×${item.h}</span>`;
-  t.querySelector("img").src = item.src;
+  t.querySelector("img").src = item.view;
   t.querySelector(".chk").onclick = e => { e.stopPropagation(); toggle(item, t); };
   t.onclick = () => openViewer(item);
   item.el = t;
@@ -234,7 +270,7 @@ $("form").onsubmit = async e => {
   const host = new URL(start).host;
   const maxPages = Math.min(50, Math.max(1, +$("pages").value || 1));
   const queue = [start], seen = new Set(queue);
-  let done = 0;
+  let done = 0, failed = 0, lastErr = "";
   state.busy = true; $("go").disabled = true;
   localStorageSafe("lastUrl", start);
   try {
@@ -242,16 +278,19 @@ $("form").onsubmit = async e => {
       const page = queue.shift();
       setStatus(`Fetching ${done + 1}/${maxPages}: ${page}`);
       try {
-        const html = await proxied(page);
+        const html = await getPageHtml(page);
         const doc = new DOMParser().parseFromString(html, "text/html");
         findImages(doc, page).forEach(src => addImage(src, page));
         findLinks(doc, page, host).forEach(l => { if (!seen.has(l)) { seen.add(l); queue.push(l); } });
-      } catch (err) { setStatus(`Couldn't load ${page} (${err.message})`, true); }
+      } catch (err) { failed++; lastErr = err.message; setStatus(`Couldn't load ${page}`, true); }
       done++; setProg(done / maxPages);
     }
-    setTimeout(() => setStatus(state.images.length
-      ? `Done. ${state.images.length} pictures from ${done} page${done > 1 ? "s" : ""}. Tap ✓ to select.`
-      : "No pictures found. The site may load them with JavaScript or block scrapers.", !state.images.length), 1200);
+    setTimeout(() => {
+      const n = state.images.length;
+      if (n) setStatus(`Done. ${n} pictures from ${done - failed} page${done - failed === 1 ? "" : "s"}. Tap ✓ to select.`);
+      else if (failed === done) setStatus(`Couldn't load the site. ${lastErr}`, true);
+      else setStatus("Page loaded but no pictures found. Try lowering Min size, or the site may block scrapers.", true);
+    }, 2500);
   } finally { state.busy = false; $("go").disabled = false; }
 };
 
@@ -259,11 +298,6 @@ function fileName(src, blob, i) {
   let name = decodeURIComponent(new URL(src).pathname.split("/").pop() || "image").replace(/[^\w.-]/g, "_").slice(0, 60);
   if (!/\.\w{2,5}$/.test(name)) name += "." + ((blob.type.split("/")[1] || "jpg").replace("jpeg", "jpg").replace("svg+xml", "svg"));
   return i != null ? `${String(i + 1).padStart(3, "0")}_${name}` : name;
-}
-
-async function getBlob(src) {
-  try { const r = await fetch(src, { referrerPolicy: "no-referrer" }); if (r.ok) return await r.blob(); } catch {}
-  return proxied(src, true); // most image hosts don't allow CORS
 }
 
 function downloadBlob(blob, name) {
@@ -277,7 +311,7 @@ async function saveItems(items) {
   const files = [];
   for (let i = 0; i < items.length; i++) {
     setStatus(`Downloading ${i + 1}/${items.length}…`); setProg((i + 1) / items.length);
-    try { const b = await getBlob(items[i].src); files.push(new File([b], fileName(items[i].src, b, items.length > 1 ? i : null), { type: b.type })); }
+    try { const b = await getImageBlob(items[i].src); files.push(new File([b], fileName(items[i].src, b, items.length > 1 ? i : null), { type: b.type })); }
     catch {}
   }
   if (!files.length) return setStatus("Couldn't download those pictures.", true);
@@ -301,7 +335,7 @@ async function saveItems(items) {
 $("save").onclick = async () => { $("save").disabled = true; await saveItems([...state.selected]); updateCount(); };
 
 let viewing = null;
-function openViewer(item) { viewing = item; $("vimg").src = item.src; $("vurl").textContent = item.src; $("viewer").classList.add("open"); }
+function openViewer(item) { viewing = item; $("vimg").src = item.view; $("vurl").textContent = item.src; $("viewer").classList.add("open"); }
 $("vclose").onclick = () => $("viewer").classList.remove("open");
 $("vsave").onclick = () => viewing && saveItems([viewing]);
 
