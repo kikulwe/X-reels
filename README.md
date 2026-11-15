@@ -4,7 +4,22 @@ Crawl a website, extract data with CSS selectors, and download its pictures to y
 
 > This repo previously held the X Reels app. Its code is still in the git history.
 
-## Setup
+## Web app (phone)
+
+**https://kikulwe.github.io/x-reels/**
+
+Paste a link → tap **Scrape** → tick pictures → **Save**. On a phone, Save opens the share sheet
+(choose *Save to Photos* / *Save image*); on a computer, one picture downloads directly and several
+download as a ZIP. Add it to your home screen to use it like an app.
+
+The web app fetches sites through free public CORS proxies (browsers can't read other sites directly),
+so very large or protected sites may fail. For big jobs use the Python version below.
+
+Code is in `site/`; pushes to `main` deploy automatically via `.github/workflows/pages.yml`.
+
+## Python version (computer)
+
+### Setup
 
 ```bash
 git clone https://github.com/kikulwe/x-reels.git
@@ -12,7 +27,7 @@ cd x-reels
 pip install -r requirements.txt
 ```
 
-## Download pictures
+### Download pictures
 
 ```bash
 # All pictures from one page -> ./downloads/<site>/
@@ -28,7 +43,7 @@ python scraper.py https://example.com --images-only --images-dir ~/Pictures/scra
 Finds `<img>`, lazy-loaded (`data-src`), `srcset` (largest version) and `og:image` pictures.
 Skips duplicates (same file under different URLs) and tiny icons (< 5 KB by default).
 
-## Extract data
+### Extract data
 
 ```bash
 # Page summary (title, description, text)
@@ -47,7 +62,7 @@ python scraper.py https://books.toscrape.com --max-pages 5 --item "article.produ
 
 `--field name="selector"` takes text; `name="selector@attr"` takes an attribute.
 
-## Options
+### Options
 
 | Option | Default | What it does |
 |---|---|---|

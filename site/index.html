@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e0f12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Scraper</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+  :root {
+    --bg: #0e0f12; --card: #17191e; --line: #262932; --text: #eef0f4; --muted: #8b90a0;
+    --accent: #4f8cff; --accent-2: #2f6ae6; --good: #3ecf8e; --bad: #ff6b6b;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { padding: env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 90px); }
+  header { padding: 18px 16px 6px; }
+  h1 { margin: 0; font-size: 24px; letter-spacing: -.02em; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .panel { margin: 12px 16px; padding: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; }
+  .row { display: flex; gap: 8px; }
+  input[type=url], input[type=number] {
+    flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--text); font-size: 16px; outline: none; }
+  input:focus { border-color: var(--accent); }
+  button { border: 0; border-radius: 12px; padding: 12px 16px; font-size: 15px; font-weight: 600;
+    background: var(--accent); color: #fff; cursor: pointer; }
+  button:active { background: var(--accent-2); }
+  button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  button:disabled { opacity: .45; }
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .opts label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .opts input { padding: 9px 12px; font-size: 15px; }
+  .status { margin: 0 16px; min-height: 20px; color: var(--muted); font-size: 13px; }
+  .status.err { color: var(--bad); }
+  .bar { height: 3px; margin: 6px 16px 0; background: var(--line); border-radius: 3px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin: 14px 16px 8px; font-size: 13px; color: var(--muted); }
+  .toolbar button { padding: 6px 12px; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 6px; padding: 0 16px; }
+  .tile { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--card); border: 2px solid transparent; }
+  .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tile.sel { border-color: var(--accent); }
+  .tile .chk { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%;
+    border: 2px solid #fff; background: rgba(0,0,0,.35); display: grid; place-items: center; font-size: 13px; }
+  .tile.sel .chk { background: var(--accent); border-color: var(--accent); }
+  .tile .dim { position: absolute; left: 6px; bottom: 6px; font-size: 10px; padding: 2px 5px; border-radius: 6px; background: rgba(0,0,0,.6); }
+  .empty { text-align: center; color: var(--muted); padding: 40px 20px; font-size: 14px; }
+  .dock { position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: 8px;
+    padding: 12px 16px calc(env(safe-area-inset-bottom) + 12px); background: rgba(14,15,18,.92);
+    backdrop-filter: blur(12px); border-top: 1px solid var(--line); }
+  .dock button { flex: 1; }
+  .viewer { position: fixed; inset: 0; background: rgba(0,0,0,.94); display: none; flex-direction: column; z-index: 10; }
+  .viewer.open { display: flex; }
+  .viewer img { flex: 1; min-height: 0; object-fit: contain; width: 100%; }
+  .viewer .vbar { display: flex; gap: 8px; padding: 12px 16px calc(env(safe-area-inset-bottom) + 12px); }
+  .viewer .vbar button { flex: 1; }
+  .viewer .vurl { padding: calc(env(safe-area-inset-top) + 12px) 16px 8px; font-size: 11px; color: var(--muted); word-break: break-all; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Scraper</h1>
+  <p>Paste a website link, grab its pictures, save them to your device.</p>
+</header>
+
+<form class="panel" id="form">
+  <div class="row">
+    <input type="url" id="url" placeholder="https://example.com" required autocomplete="url" inputmode="url">
+    <button id="go" type="submit">Scrape</button>
+  </div>
+  <div class="opts">
+    <label>Pages to crawl <input type="number" id="pages" value="1" min="1" max="50"></label>
+    <label>Min size (px) <input type="number" id="minpx" value="150" min="0" step="50"></label>
+  </div>
+</form>
+
+<div class="status" id="status"></div>
+<div class="bar"><i id="prog"></i></div>
+
+<div class="toolbar" id="toolbar" hidden>
+  <span id="count">0 pictures</span>
+  <button class="ghost" id="toggleAll" type="button">Select all</button>
+</div>
+<div class="grid" id="grid"></div>
+<div class="empty" id="empty">No pictures yet.</div>
+
+<div class="dock">
+  <button class="ghost" id="clear" type="button">Clear</button>
+  <button id="save" type="button" disabled>Save selected</button>
+</div>
+
+<div class="viewer" id="viewer">
+  <div class="vurl" id="vurl"></div>
+  <img id="vimg" alt="" referrerpolicy="no-referrer">
+  <div class="vbar">
+    <button class="ghost" id="vclose" type="button">Close</button>
+    <button id="vsave" type="button">Save</button>
+  </div>
+</div>
+
+<script>
+// Browsers can't read other websites directly (CORS), so pages and image bytes
+// go through free public CORS proxies. If one is down we try the next.
+const PROXIES = [
+  u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+];
+let goodProxy = 0;
+
+async function proxied(url, asBlob) {
+  let lastErr;
+  for (let i = 0; i < PROXIES.length; i++) {
+    const idx = (goodProxy + i) % PROXIES.length;
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 20000);
+      const r = await fetch(PROXIES[idx](url), { signal: ctrl.signal });
+      clearTimeout(t);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      goodProxy = idx;
+      return asBlob ? await r.blob() : await r.text();
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error("All proxies failed");
+}
+
+const $ = id => document.getElementById(id);
+const state = { images: [], selected: new Set(), busy: false };
+
+function setStatus(msg, err) { $("status").textContent = msg; $("status").className = "status" + (err ? " err" : ""); }
+function setProg(p) { $("prog").style.width = (p * 100) + "%"; }
+
+function findImages(doc, base) {
+  const urls = [];
+  const add = u => {
+    if (!u || u.startsWith("data:")) return;
+    try { const full = new URL(u.trim(), base); full.hash = "";
+      if (/^https?:$/.test(full.protocol)) urls.push(full.href); } catch {}
+  };
+  doc.querySelectorAll("img, source").forEach(el => {
+    ["src", "data-src", "data-lazy-src", "data-original"].forEach(a => add(el.getAttribute(a)));
+    const ss = el.getAttribute("srcset") || el.getAttribute("data-srcset");
+    if (ss) add(ss.split(",").pop().trim().split(/\s+/)[0]); // largest candidate
+  });
+  doc.querySelectorAll('meta[property="og:image"], meta[name="twitter:image"], link[rel="image_src"]')
+    .forEach(m => add(m.getAttribute("content") || m.getAttribute("href")));
+  doc.querySelectorAll("[style*='background']").forEach(el => {
+    const m = (el.getAttribute("style") || "").match(/url\(['"]?([^'")]+)/); if (m) add(m[1]);
+  });
+  return urls;
+}
+
+function findLinks(doc, base, host) {
+  const out = [];
+  doc.querySelectorAll("a[href]").forEach(a => {
+    try { const u = new URL(a.getAttribute("href"), base); u.hash = "";
+      if (u.host === host && /^https?:$/.test(u.protocol)) out.push(u.href); } catch {}
+  });
+  return out;
+}
+
+function addImage(src, page) {
+  if (state.images.some(i => i.src === src)) return;
+  const minpx = +$("minpx").value || 0;
+  const probe = new Image();
+  probe.referrerPolicy = "no-referrer";
+  probe.onload = () => {
+    if (probe.naturalWidth < minpx && probe.naturalHeight < minpx) return;
+    if (state.images.some(i => i.src === src)) return;
+    const item = { src, page, w: probe.naturalWidth, h: probe.naturalHeight };
+    state.images.push(item);
+    render(item);
+  };
+  probe.onerror = () => { // hotlink-blocked? try through proxy
+    if (probe.dataset.retried) return;
+    probe.dataset.retried = 1;
+    proxied(src, true).then(b => { if (b.type.startsWith("image/")) probe.src = URL.createObjectURL(b); }).catch(() => {});
+  };
+  probe.src = src;
+}
+
+function render(item) {
+  $("empty").hidden = true; $("toolbar").hidden = false;
+  const t = document.createElement("div");
+  t.className = "tile";
+  t.innerHTML = `<img loading="lazy" referrerpolicy="no-referrer" alt=""><span class="chk">✓</span><span class="dim">${item.w}×${item.h}</span>`;
+  t.querySelector("img").src = item.src;
+  t.querySelector(".chk").onclick = e => { e.stopPropagation(); toggle(item, t); };
+  t.onclick = () => openViewer(item);
+  item.el = t;
+  $("grid").appendChild(t);
+  updateCount();
+}
+
+function toggle(item, el) {
+  state.selected.has(item) ? state.selected.delete(item) : state.selected.add(item);
+  el.classList.toggle("sel", state.selected.has(item));
+  updateCount();
+}
+
+function updateCount() {
+  const n = state.images.length, s = state.selected.size;
+  $("count").textContent = `${n} picture${n === 1 ? "" : "s"}${s ? ` · ${s} selected` : ""}`;
+  $("save").disabled = !s;
+  $("save").textContent = s ? `Save ${s}` : "Save selected";
+  $("toggleAll").textContent = s === n && n ? "Select none" : "Select all";
+}
+
+$("toggleAll").onclick = () => {
+  const all = state.selected.size !== state.images.length;
+  state.selected.clear();
+  state.images.forEach(i => { if (all) state.selected.add(i); i.el.classList.toggle("sel", all); });
+  updateCount();
+};
+
+$("clear").onclick = () => {
+  state.images = []; state.selected.clear(); $("grid").innerHTML = "";
+  $("empty").hidden = false; $("toolbar").hidden = true; setStatus(""); setProg(0); updateCount();
+};
+
+$("form").onsubmit = async e => {
+  e.preventDefault();
+  if (state.busy) return;
+  let start = $("url").value.trim();
+  if (!/^https?:\/\//i.test(start)) start = "https://" + start;
+  const host = new URL(start).host;
+  const maxPages = Math.min(50, Math.max(1, +$("pages").value || 1));
+  const queue = [start], seen = new Set(queue);
+  let done = 0;
+  state.busy = true; $("go").disabled = true;
+  localStorageSafe("lastUrl", start);
+  try {
+    while (queue.length && done < maxPages) {
+      const page = queue.shift();
+      setStatus(`Fetching ${done + 1}/${maxPages}: ${page}`);
+      try {
+        const html = await proxied(page);
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        findImages(doc, page).forEach(src => addImage(src, page));
+        findLinks(doc, page, host).forEach(l => { if (!seen.has(l)) { seen.add(l); queue.push(l); } });
+      } catch (err) { setStatus(`Couldn't load ${page} (${err.message})`, true); }
+      done++; setProg(done / maxPages);
+    }
+    setTimeout(() => setStatus(state.images.length
+      ? `Done. ${state.images.length} pictures from ${done} page${done > 1 ? "s" : ""}. Tap ✓ to select.`
+      : "No pictures found. The site may load them with JavaScript or block scrapers.", !state.images.length), 1200);
+  } finally { state.busy = false; $("go").disabled = false; }
+};
+
+function fileName(src, blob, i) {
+  let name = decodeURIComponent(new URL(src).pathname.split("/").pop() || "image").replace(/[^\w.-]/g, "_").slice(0, 60);
+  if (!/\.\w{2,5}$/.test(name)) name += "." + ((blob.type.split("/")[1] || "jpg").replace("jpeg", "jpg").replace("svg+xml", "svg"));
+  return i != null ? `${String(i + 1).padStart(3, "0")}_${name}` : name;
+}
+
+async function getBlob(src) {
+  try { const r = await fetch(src, { referrerPolicy: "no-referrer" }); if (r.ok) return await r.blob(); } catch {}
+  return proxied(src, true); // most image hosts don't allow CORS
+}
+
+function downloadBlob(blob, name) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+async function saveItems(items) {
+  const files = [];
+  for (let i = 0; i < items.length; i++) {
+    setStatus(`Downloading ${i + 1}/${items.length}…`); setProg((i + 1) / items.length);
+    try { const b = await getBlob(items[i].src); files.push(new File([b], fileName(items[i].src, b, items.length > 1 ? i : null), { type: b.type })); }
+    catch {}
+  }
+  if (!files.length) return setStatus("Couldn't download those pictures.", true);
+
+  // Phones: share sheet lets you "Save to Photos"/"Save Image"
+  if (navigator.canShare && navigator.canShare({ files }) && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+    try { await navigator.share({ files }); setStatus(`Shared ${files.length} picture(s).`); return; }
+    catch (e) { if (e.name === "AbortError") return setStatus("Cancelled."); }
+  }
+  if (files.length === 1) { downloadBlob(files[0], files[0].name); }
+  else {
+    const zip = new JSZip();
+    files.forEach(f => zip.file(f.name, f));
+    setStatus("Zipping…");
+    const host = new URL(items[0].page).host.replace(/[^\w.-]/g, "_");
+    downloadBlob(await zip.generateAsync({ type: "blob" }), `${host}_images.zip`);
+  }
+  setStatus(`Saved ${files.length} picture(s)${files.length < items.length ? ` (${items.length - files.length} failed)` : ""}.`);
+}
+
+$("save").onclick = async () => { $("save").disabled = true; await saveItems([...state.selected]); updateCount(); };
+
+let viewing = null;
+function openViewer(item) { viewing = item; $("vimg").src = item.src; $("vurl").textContent = item.src; $("viewer").classList.add("open"); }
+$("vclose").onclick = () => $("viewer").classList.remove("open");
+$("vsave").onclick = () => viewing && saveItems([viewing]);
+
+function localStorageSafe(k, v) { try { v === undefined ? (v = localStorage.getItem(k)) : localStorage.setItem(k, v); } catch {} return v; }
+const last = localStorageSafe("lastUrl"); if (last) $("url").value = last;
+const shared = new URLSearchParams(location.search).get("url"); if (shared) $("url").value = shared;
+</script>
+</body>
+</html>
