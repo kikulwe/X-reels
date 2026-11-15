@@ -77,7 +77,7 @@
   </div>
   <div class="opts">
     <label>Pages to crawl <input type="number" id="pages" value="1" min="1" max="50"></label>
-    <label>Min size (px) <input type="number" id="minpx" value="150" min="0" step="50"></label>
+    <label>Min size (px) <input type="number" id="minpx" value="100" min="0" step="50"></label>
   </div>
 </form>
 
@@ -132,7 +132,7 @@ function mdToHtml(md) {
 }
 
 const PAGE_SOURCES = [
-  ["Jina (rendered)", u => fetchT(`https://r.jina.ai/${u}`, { headers: { "X-Return-Format": "html" } }, 45000).then(r => r.text())],
+  ["Jina (rendered)", u => fetchT(`https://r.jina.ai/${u}`, { headers: { "X-Return-Format": "html", "X-Engine": "browser" } }, 45000).then(r => r.text())],
   ["Jina (markdown)", u => fetchT(`https://r.jina.ai/${u}`, {}, 45000).then(r => r.text()).then(mdToHtml)],
   ["AllOrigins", u => fetchT(`https://api.allorigins.win/raw?url=${enc(u)}`).then(r => r.text())],
   ["CodeTabs", u => fetchT(`https://api.codetabs.com/v1/proxy?quest=${enc(u)}`).then(r => r.text())],
@@ -174,24 +174,61 @@ const state = { images: [], selected: new Set(), busy: false };
 function setStatus(msg, err) { $("status").textContent = msg; $("status").className = "status" + (err ? " err" : ""); }
 function setProg(p) { $("prog").style.width = (p * 100) + "%"; }
 
-function findImages(doc, base) {
-  const urls = [];
-  const add = u => {
-    if (!u || u.startsWith("data:")) return;
-    try { const full = new URL(u.trim(), base); full.hash = "";
-      if (/^https?:$/.test(full.protocol)) urls.push(full.href); } catch {}
-  };
-  doc.querySelectorAll("img, source").forEach(el => {
-    ["src", "data-src", "data-lazy-src", "data-original"].forEach(a => add(el.getAttribute(a)));
-    const ss = el.getAttribute("srcset") || el.getAttribute("data-srcset");
-    if (ss) add(ss.split(",").pop().trim().split(/\s+/)[0]); // largest candidate
+const IMG_RE = /\.(jpe?g|png|webp|gif|avif|bmp|heic)(\?|#|$)/i;
+const IMG_IN_TEXT = /https?:\\?\/\\?\/(?:[^\s"'<>()\\]|\\\/)+?\.(?:jpe?g|png|webp|gif|avif)(?:\?[^\s"'<>()\\]*)?/gi;
+const CSS_URL = /url\(\s*['"]?([^'")]+?\.(?:jpe?g|png|webp|gif|avif)[^'")]*)['"]?\s*\)/gi;
+
+// Pick the largest candidate from a srcset ("a.jpg 320w, b.jpg 1280w")
+function bestFromSrcset(ss) {
+  let best = null, bestN = -1;
+  ss.split(/,\s+(?=\S)/).forEach(part => {
+    const [u, d = "1x"] = part.trim().split(/\s+/);
+    const n = parseFloat(d) || 1;
+    if (u && n >= bestN) { best = u; bestN = n; }
   });
+  return best;
+}
+
+function findImages(doc, base, raw) {
+  const urls = new Set();
+  const add = u => {
+    if (!u || typeof u !== "string") return;
+    u = u.trim().replace(/\\\//g, "/").replace(/&amp;/g, "&");
+    if (!u || u.startsWith("data:") || u.startsWith("blob:")) return;
+    try { const full = new URL(u, base); full.hash = "";
+      if (/^https?:$/.test(full.protocol)) urls.add(full.href); } catch {}
+  };
+  // 1. Every attribute on <img>/<source>/<picture>/<video poster> — catches any lazy-load naming
+  doc.querySelectorAll("img, source, picture, video, image").forEach(el => {
+    for (const a of el.attributes) {
+      const v = a.value;
+      if (/srcset/i.test(a.name)) add(bestFromSrcset(v));
+      else if (/^(src|poster|href|xlink:href)$/i.test(a.name) || /^data-/i.test(a.name) && (IMG_RE.test(v) || /^(https?:)?\/\//.test(v))) add(v);
+    }
+  });
+  // 2. Any element whose data-* / href attribute points at an image file (gallery links to full size, lazy backgrounds)
+  doc.querySelectorAll("*").forEach(el => {
+    for (const a of el.attributes) {
+      if ((/^data-/i.test(a.name) || a.name === "href" || a.name === "content") && IMG_RE.test(a.value)) {
+        if (a.value.includes(",") && /\s\d+[wx]/.test(a.value)) add(bestFromSrcset(a.value)); else add(a.value);
+      }
+      if (a.name === "style") for (const m of a.value.matchAll(/url\(\s*['"]?([^'")]+)/g)) add(m[1]);
+    }
+  });
+  // 3. Social preview images
   doc.querySelectorAll('meta[property="og:image"], meta[name="twitter:image"], link[rel="image_src"]')
     .forEach(m => add(m.getAttribute("content") || m.getAttribute("href")));
-  doc.querySelectorAll("[style*='background']").forEach(el => {
-    const m = (el.getAttribute("style") || "").match(/url\(['"]?([^'")]+)/); if (m) add(m[1]);
+  // 4. <noscript> fallbacks
+  doc.querySelectorAll("noscript").forEach(n => {
+    const d = new DOMParser().parseFromString(n.textContent, "text/html");
+    d.querySelectorAll("img").forEach(i => { add(i.getAttribute("src")); if (i.srcset) add(bestFromSrcset(i.srcset)); });
   });
-  return urls;
+  // 5. Image URLs buried in scripts, JSON data and CSS
+  if (raw) {
+    for (const m of raw.matchAll(IMG_IN_TEXT)) add(m[0]);
+    for (const m of raw.matchAll(CSS_URL)) add(m[1]);
+  }
+  return [...urls];
 }
 
 function findLinks(doc, base, host) {
@@ -203,24 +240,42 @@ function findLinks(doc, base, host) {
   return out;
 }
 
+const stats = { found: 0, pending: 0, small: 0, failed: 0, crawling: false, pages: 0, pageFails: 0, lastErr: "" };
+const tried = new Set();
+
 function addImage(src, page) {
-  if (state.images.some(i => i.src === src)) return;
+  if (tried.has(src)) return;
+  tried.add(src);
+  stats.found++; stats.pending++;
   const minpx = +$("minpx").value || 0;
   const probe = new Image();
   probe.referrerPolicy = "no-referrer";
+  const finish = () => { stats.pending--; showSummary(); };
   probe.onload = () => {
-    if (probe.naturalWidth < minpx && probe.naturalHeight < minpx) return;
-    if (state.images.some(i => i.src === src)) return;
+    if (probe.naturalWidth < minpx && probe.naturalHeight < minpx) { stats.small++; return finish(); }
     const item = { src, view: probe.src, page, w: probe.naturalWidth, h: probe.naturalHeight };
     state.images.push(item);
     render(item);
+    finish();
   };
   probe.onerror = () => { // hotlink-blocked? load through the image proxy
-    if (probe.dataset.retried) return;
+    if (probe.dataset.retried) { stats.failed++; return finish(); }
     probe.dataset.retried = 1;
     probe.src = imgProxy(src);
   };
   probe.src = src;
+}
+
+function showSummary() {
+  if (stats.crawling) return;
+  const n = state.images.length, ok = stats.pages - stats.pageFails;
+  if (!stats.pages) return;
+  if (!ok) return setStatus(`Couldn't load the site. ${stats.lastErr}`, true);
+  const parts = [`${stats.found} found on ${ok} page${ok === 1 ? "" : "s"}`, `${n} shown`];
+  if (stats.small) parts.push(`${stats.small} smaller than ${$("minpx").value}px skipped`);
+  if (stats.failed) parts.push(`${stats.failed} wouldn't load`);
+  if (stats.pending) parts.push(`${stats.pending} still checking…`);
+  setStatus(parts.join(" · "), !n && !stats.pending);
 }
 
 function render(item) {
@@ -258,7 +313,8 @@ $("toggleAll").onclick = () => {
 };
 
 $("clear").onclick = () => {
-  state.images = []; state.selected.clear(); $("grid").innerHTML = "";
+  state.images = []; state.selected.clear(); $("grid").innerHTML = ""; tried.clear();
+  Object.assign(stats, { found: 0, pending: 0, small: 0, failed: 0, pages: 0, pageFails: 0 });
   $("empty").hidden = false; $("toolbar").hidden = true; setStatus(""); setProg(0); updateCount();
 };
 
@@ -270,7 +326,8 @@ $("form").onsubmit = async e => {
   const host = new URL(start).host;
   const maxPages = Math.min(50, Math.max(1, +$("pages").value || 1));
   const queue = [start], seen = new Set(queue);
-  let done = 0, failed = 0, lastErr = "";
+  let done = 0;
+  Object.assign(stats, { crawling: true, pages: 0, pageFails: 0, lastErr: "" });
   state.busy = true; $("go").disabled = true;
   localStorageSafe("lastUrl", start);
   try {
@@ -280,17 +337,12 @@ $("form").onsubmit = async e => {
       try {
         const html = await getPageHtml(page);
         const doc = new DOMParser().parseFromString(html, "text/html");
-        findImages(doc, page).forEach(src => addImage(src, page));
+        findImages(doc, page, html).forEach(src => addImage(src, page));
         findLinks(doc, page, host).forEach(l => { if (!seen.has(l)) { seen.add(l); queue.push(l); } });
-      } catch (err) { failed++; lastErr = err.message; setStatus(`Couldn't load ${page}`, true); }
-      done++; setProg(done / maxPages);
+      } catch (err) { stats.pageFails++; stats.lastErr = err.message; }
+      done++; stats.pages = done; setProg(done / maxPages);
     }
-    setTimeout(() => {
-      const n = state.images.length;
-      if (n) setStatus(`Done. ${n} pictures from ${done - failed} page${done - failed === 1 ? "" : "s"}. Tap ✓ to select.`);
-      else if (failed === done) setStatus(`Couldn't load the site. ${lastErr}`, true);
-      else setStatus("Page loaded but no pictures found. Try lowering Min size, or the site may block scrapers.", true);
-    }, 2500);
+    stats.crawling = false; showSummary();
   } finally { state.busy = false; $("go").disabled = false; }
 };
 
