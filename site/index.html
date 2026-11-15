@@ -4,7 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0e0f12">
-<meta name="referrer" content="no-referrer">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Scraper</title>
@@ -160,21 +159,21 @@ const PAGE_SOURCES = [
   ["AllOrigins", u => fetchT(`https://api.allorigins.win/raw?url=${enc(u)}`).then(r => r.text())],
   ["CodeTabs", u => fetchT(`https://api.codetabs.com/v1/proxy?quest=${enc(u)}`).then(r => r.text())],
 ];
-let goodSource = 0;
 
-async function getPageHtml(url) {
+// Ask every source at once and merge what they return: Jina sees JavaScript-built
+// pictures, the raw proxies see the original HTML, and any one of them can be down
+// or rate-limited on a given run. Jina markdown is only used if all of them fail.
+async function getPageHtmls(url) {
   const errs = [];
-  for (let i = 0; i < PAGE_SOURCES.length; i++) {
-    const idx = (goodSource + i) % PAGE_SOURCES.length;
-    const [name, get] = PAGE_SOURCES[idx];
-    try {
-      const html = await get(url);
-      if (!html || html.length < 50) throw new Error("empty response");
-      goodSource = idx;
-      return html;
-    } catch (e) { errs.push(`${name}: ${e.message}`); }
-  }
-  throw new Error(errs.join(" · "));
+  const tryOne = async ([name, get]) => {
+    try { const h = await get(url); if (!h || h.length < 50) throw new Error("empty response"); return h; }
+    catch (e) { errs.push(`${name}: ${e.message}`); return null; }
+  };
+  const main = PAGE_SOURCES.filter(([n]) => n !== "Jina (markdown)");
+  let htmls = (await Promise.all(main.map(tryOne))).filter(Boolean);
+  if (!htmls.length) htmls = [await tryOne(PAGE_SOURCES.find(([n]) => n === "Jina (markdown)"))].filter(Boolean);
+  if (!htmls.length) throw new Error(errs.join(" · "));
+  return htmls;
 }
 
 const imgProxy = src => `https://wsrv.nl/?url=${enc(src)}`;
@@ -437,6 +436,7 @@ $("form").onsubmit = async e => {
   const queue = [start], seen = new Set(queue);
   let done = 0;
   Object.assign(stats, { crawling: true, pages: 0, pageFails: 0, lastErr: "" });
+  state.images.forEach(i => tried.add(i.src));
   state.busy = true; $("go").disabled = true;
   localStorageSafe("lastUrl", start);
   try {
@@ -444,11 +444,12 @@ $("form").onsubmit = async e => {
       const page = queue.shift();
       setStatus(`Fetching ${done + 1}/${maxPages}: ${page}`);
       try {
-        const html = await getPageHtml(page);
-        const doc = new DOMParser().parseFromString(html, "text/html");
-        if ($("wantVid").checked) findVideos(doc, page, html).forEach(src => addVideo(src, page));
-        if ($("wantImg").checked) findImages(doc, page, html).forEach(src => addImage(src, page));
-        findLinks(doc, page, host).forEach(l => { if (!seen.has(l)) { seen.add(l); queue.push(l); } });
+        for (const html of await getPageHtmls(page)) {
+          const doc = new DOMParser().parseFromString(html, "text/html");
+          if ($("wantVid").checked) findVideos(doc, page, html).forEach(src => addVideo(src, page));
+          if ($("wantImg").checked) findImages(doc, page, html).forEach(src => addImage(src, page));
+          findLinks(doc, page, host).forEach(l => { if (!seen.has(l)) { seen.add(l); queue.push(l); } });
+        }
       } catch (err) { stats.pageFails++; stats.lastErr = err.message; }
       done++; stats.pages = done; setProg(done / maxPages);
     }
