@@ -17,6 +17,21 @@ so very large or protected sites may fail. Live streams (.m3u8) and videos on Yo
 
 Code is in `site/`; pushes to `main` deploy automatically via `.github/workflows/pages.yml`.
 
+## Magazine Maker
+
+**https://kikulwe.github.io/X-reels/magazine/**
+
+Make a 4-page vintage magazine (cover, contents, feature story, advert) and save it as a PDF.
+
+1. Pick a decade: 1920s, 1940s, 1950s, 1960s, 1970s, 1980s or 1990s. Each has its own fonts, colours, layout and original artwork, plus sample text written in the style of the time.
+2. Type your own magazine name, headlines, story and advert, or keep the sample text.
+3. Tap **Add photo** (or tap a picture in the preview) to use your own photos for the cover, the feature and the advert. Without a photo, the decade's drawing is used.
+4. Tap **Download PDF** and choose **Save as PDF** in the print screen. The file is named after the issue, e.g. `atomic-home-june-1957.pdf`.
+
+Headlines and text shrink automatically to fit; if something is still too long, a message says what to shorten. Your text and photos stay in your browser for next time. Paper size (A4 or US Letter) and the aged-paper look are under **Page and print**.
+
+Code is in `site/magazine/`.
+
 ## Python version (computer)
 
 ### Setup

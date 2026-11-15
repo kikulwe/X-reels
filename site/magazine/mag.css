@@ -1,0 +1,285 @@
+.mag { --pw: 210mm; --ph: 297mm; --w-head: 400; --age: 1; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.mag *, .mag *::before, .mag *::after { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.mag[data-era="1920s"] { --f-mast: Limelight, serif; --f-head: "Poiret One", sans-serif; --f-body: "Cormorant Garamond", serif; --f-label: "Poiret One", sans-serif; --body-size: 11.2pt; }
+.mag[data-era="1940s"] { --f-mast: "Bebas Neue", sans-serif; --f-head: Oswald, sans-serif; --w-head: 700; --f-body: "Libre Caslon Text", serif; --f-label: Oswald, sans-serif; --body-size: 9pt; }
+.mag[data-era="1950s"] { --f-mast: Pacifico, cursive; --f-head: Nunito, sans-serif; --w-head: 900; --f-body: Lora, serif; --f-label: Nunito, sans-serif; --body-size: 10pt; }
+.mag[data-era="1960s"] { --f-mast: "Archivo Black", sans-serif; --f-head: "Archivo Black", sans-serif; --f-body: Archivo, sans-serif; --f-label: Archivo, sans-serif; --body-size: 9.6pt; }
+.mag[data-era="1970s"] { --f-mast: Shrikhand, serif; --f-head: Fraunces, serif; --w-head: 900; --f-body: Fraunces, serif; --f-label: Fraunces, serif; --body-size: 10pt; }
+.mag[data-era="1980s"] { --f-mast: "Russo One", sans-serif; --f-head: "Russo One", sans-serif; --f-body: Archivo, sans-serif; --f-label: VT323, monospace; --body-size: 9.4pt; --age: .25; }
+.mag[data-era="1990s"] { --f-mast: "Permanent Marker", cursive; --f-head: "Archivo Black", sans-serif; --f-body: "Special Elite", monospace; --f-label: "Special Elite", monospace; --body-size: 9.4pt; --age: .6; }
+
+.page { position: relative; width: var(--pw); height: var(--ph); overflow: hidden; background: var(--paper); color: var(--ink);
+  font-family: var(--f-body); font-size: var(--body-size, 10pt); line-height: 1.38; }
+.page::after { content: ""; position: absolute; inset: 0; background-image: var(--noise); background-size: 220px 220px; pointer-events: none; z-index: 30; mix-blend-mode: multiply; }
+.mag.aged .page::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 29; opacity: var(--age);
+  background: radial-gradient(ellipse at 50% 45%, transparent 58%, rgba(130,95,40,.17) 100%),
+    radial-gradient(circle at 84% 86%, transparent 10mm, rgba(140,100,45,.13) 10.4mm, rgba(140,100,45,.05) 12mm, transparent 12.6mm); }
+.mag:not(.aged) .page::after { opacity: .35; }
+.fold, .corner, .frame, .stripes { display: none; }
+.mag.aged .fold { display: block; position: absolute; left: 0; right: 0; top: 50%; height: 1.4mm; z-index: 28; pointer-events: none; opacity: var(--age);
+  background: linear-gradient(to bottom, rgba(0,0,0,.06), rgba(255,255,255,.22) 50%, rgba(0,0,0,.05)); }
+.mag.aged .corner { display: block; position: absolute; right: 0; bottom: 0; width: 16mm; height: 16mm; z-index: 28; pointer-events: none; opacity: var(--age);
+  background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,.4) 50%, rgba(120,90,40,.12) 100%); }
+
+.m-name, .c-lead h2, .c-lines, .t-title, .toc b, .toc .pg, .letter h3, .box h4, .f-head, .f-kick, .pull, .a-brand, .a-slogan, .a-product, .c-badge span {
+  font-family: var(--f-head); font-weight: var(--w-head); }
+[data-fit] { position: relative; }
+.fi { display: block; }
+.ph-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; filter: var(--tint); }
+.ph-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.halftone { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: multiply; opacity: .22;
+  background: radial-gradient(circle, rgba(0,0,0,.55) 30%, transparent 33%) 0 0 / 1.1mm 1.1mm; }
+
+.p-cover { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0,1fr) auto auto;
+  grid-template-areas: "mast" "date" "art" "lead" "lines"; padding: 10mm 11mm 11mm; gap: 3.5mm; }
+.c-mast { grid-area: mast; min-width: 0; text-align: center; position: relative; z-index: 2; }
+.m-name { display: block; font-family: var(--f-mast); font-weight: 400; font-size: 68pt; line-height: 1.12; white-space: nowrap; overflow: hidden; color: var(--c1); }
+.c-date { grid-area: date; display: flex; justify-content: space-between; gap: 4mm; font-family: var(--f-label); font-size: 8.5pt; text-transform: uppercase;
+  letter-spacing: .16em; border-top: .5mm solid var(--ink); border-bottom: .5mm solid var(--ink); padding: 1.2mm 0; position: relative; z-index: 2; }
+.c-art { grid-area: art; position: relative; overflow: hidden; min-height: 0; }
+.c-lead { grid-area: lead; text-align: center; position: relative; z-index: 2; }
+.c-lead h2 { font-size: 30pt; line-height: 1.04; margin: 0; max-height: 30mm; overflow: hidden; }
+.c-lead p { margin: 1.5mm 0 0; font-style: italic; font-size: 12pt; line-height: 1.25; max-height: 12mm; overflow: hidden; }
+.c-lines { grid-area: lines; list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 1.6mm 6mm;
+  max-height: 36mm; overflow: hidden; font-size: 11.5pt; line-height: 1.15; position: relative; z-index: 2; }
+.c-badge { position: absolute; width: 36mm; height: 36mm; right: 7mm; top: 58mm; display: grid; place-items: center; z-index: 6; }
+.c-badge svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.c-badge span { position: relative; text-align: center; font-size: 13pt; line-height: 1; max-width: 25mm; transform: rotate(-10deg); }
+.c-bar { position: absolute; left: 3mm; bottom: 3mm; width: 26mm; height: 13mm; z-index: 3; }
+.c-bar svg { width: 100%; height: 100%; display: block; }
+
+.p-in { padding: 13mm 15mm 10mm; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4mm; }
+.run { display: flex; justify-content: space-between; font-family: var(--f-label); font-size: 7.5pt; text-transform: uppercase; letter-spacing: .16em;
+  border-bottom: .4mm solid var(--ink); padding-bottom: 1.4mm; position: relative; z-index: 2; }
+.folio { text-align: center; font-family: var(--f-label); font-size: 8pt; letter-spacing: .2em; position: relative; z-index: 2; }
+
+.p-contents { grid-template-rows: auto auto minmax(0,1fr) auto; }
+.t-title { font-size: 40pt; line-height: 1.05; margin: 1mm 0 0; color: var(--c1); }
+.t-main { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-rows: minmax(0, max-content) minmax(42mm, 1fr); gap: 7mm 8mm; min-height: 0; }
+.t-cover { grid-column: 1 / -1; margin: 0; display: flex; flex-direction: column; gap: 1.5mm; min-height: 0; }
+.t-cover .ph { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.t-cover figcaption { font-size: 8.5pt; line-height: 1.3; }
+.t-cover figcaption b { font-family: var(--f-label); text-transform: uppercase; letter-spacing: .12em; font-size: .9em; color: var(--c1); }
+.toc { list-style: none; margin: 0; padding: 0; overflow: hidden; min-height: 0; font-size: 11pt; }
+.toc li { display: grid; grid-template-columns: 15mm 1fr; gap: 3mm; padding: 3.2mm 0; border-bottom: .3mm solid color-mix(in srgb, var(--ink) 30%, transparent); }
+.toc .pg { font-size: 2.3em; line-height: 1; color: var(--c2); }
+.toc b { display: block; font-size: 1.15em; line-height: 1.15; }
+.toc i { display: block; font-size: .86em; margin-top: 1mm; opacity: .85; }
+.t-side { display: grid; grid-template-rows: minmax(0,1fr) auto; gap: 6mm; min-height: 0; }
+.letter { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.letter h3 { font-size: 16pt; margin: 0 0 2mm; color: var(--c1); line-height: 1.1; }
+.l-body { flex: 1 1 auto; min-height: 0; overflow: hidden; font-size: 1.05em; }
+.l-body p, .f-body p { margin: 0 0 .7em; }
+.sign { font-style: italic; margin: 2mm 0 0; }
+.box { border: .6mm solid var(--ink); padding: 4mm; position: relative; }
+.box h4 { font-size: 12pt; margin: 0 0 2mm; text-transform: uppercase; letter-spacing: .08em; color: var(--c2); line-height: 1.1; }
+.box p { margin: 0; font-size: .95em; max-height: 44mm; overflow: hidden; }
+
+.p-feature { grid-template-rows: auto auto minmax(55mm, 1fr) minmax(0, max-content) auto; }
+.f-top { position: relative; z-index: 2; }
+.f-kick { font-size: 9pt; text-transform: uppercase; letter-spacing: .18em; color: var(--c1); margin-bottom: 1.5mm; }
+.f-head { font-size: 38pt; line-height: 1.02; margin: 0; max-height: 44mm; overflow: hidden; }
+.f-stand { font-size: 12.5pt; line-height: 1.3; margin: 2.5mm 0 0; font-style: italic; max-height: 24mm; overflow: hidden; }
+.f-by { margin: 2mm 0 0; font-size: 8.5pt; text-transform: uppercase; letter-spacing: .14em; font-family: var(--f-label); }
+.f-fig { margin: 0; display: flex; flex-direction: column; gap: 1.5mm; min-height: 0; }
+.f-fig .ph { position: relative; flex: 1 1 auto; overflow: hidden; min-height: 0; }
+.f-fig figcaption { font-size: 8pt; font-style: italic; line-height: 1.25; }
+.f-body { column-count: 2; column-gap: 7mm; column-fill: balance; overflow: hidden; min-height: 0; text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
+.f-body > p:first-child::first-letter { float: left; font-family: var(--f-head); font-weight: var(--w-head); font-size: 4.1em; line-height: .82; padding: .06em .08em 0 0; color: var(--c1); }
+.pull { break-inside: avoid; margin: 1mm 0 3mm; padding: 2.5mm 0; border-top: .8mm solid var(--c1); border-bottom: .8mm solid var(--c1);
+  font-size: 13.5pt; line-height: 1.2; color: var(--c2); text-align: left; hyphens: manual; }
+
+.p-ad { padding: 9mm 13mm 12mm; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0,1fr); gap: 2mm; }
+.a-tag { text-align: center; font-family: var(--f-label); font-size: 7pt; text-transform: uppercase; letter-spacing: .3em; opacity: .75; }
+.a-frame { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0,1fr) auto auto auto auto; gap: 3mm; text-align: center; padding: 8mm 10mm;
+  border: .8mm solid var(--ink); min-height: 0; position: relative; z-index: 2; }
+.a-brand { font-size: 13pt; text-transform: uppercase; letter-spacing: .3em; color: var(--c2); }
+.a-slogan { font-size: 34pt; line-height: 1.04; margin: 0; color: var(--c1); max-height: 40mm; overflow: hidden; }
+.a-art { position: relative; min-height: 0; overflow: hidden; }
+.a-art .ph-img { object-fit: contain; }
+.a-product { font-size: 17pt; line-height: 1.1; }
+.a-body { margin: 0 auto; max-width: 140mm; font-size: 1.12em; max-height: 34mm; overflow: hidden; }
+.a-coupon { margin: 0 auto; width: 120mm; max-width: 100%; border: .5mm dashed var(--ink); background: var(--paper); padding: 3mm 4mm; text-align: left; position: relative; font-size: .95em; }
+.a-cut { position: absolute; top: -3.2mm; left: 5mm; background: var(--paper); padding: 0 1mm; font-size: 10pt; line-height: 1; }
+.a-coupon p { margin: 0 0 2mm; font-weight: 700; }
+.a-form { display: grid; gap: 2.2mm; font-size: 7.5pt; text-transform: uppercase; letter-spacing: .1em; }
+.a-form span { border-bottom: .3mm dotted var(--ink); padding-bottom: .4mm; }
+.a-fine { margin: 0; font-size: 6.5pt; line-height: 1.3; opacity: .8; }
+
+@media screen {
+  .slot { cursor: pointer; outline: .5mm dashed color-mix(in srgb, var(--ink) 45%, transparent); outline-offset: -1.5mm; }
+  .slot .ph::after, .c-art.slot::after, .a-art.slot::after { content: attr(data-hint); position: absolute; left: 2mm; top: 2mm; z-index: 7;
+    font: 600 9pt/1 -apple-system, "Segoe UI", Roboto, sans-serif; color: #fff; background: rgba(0,0,0,.62); padding: 1.6mm 2.4mm; border-radius: 2mm; letter-spacing: 0; text-transform: none; }
+}
+
+.mag[data-era="1920s"] .frame { display: block; position: absolute; inset: 6mm; z-index: 1; pointer-events: none;
+  border: .7mm solid var(--c1); box-shadow: inset 0 0 0 1.4mm var(--paper), inset 0 0 0 1.8mm var(--c1); }
+.mag[data-era="1920s"] .p-cover { padding: 13mm 14mm 14mm; }
+.mag[data-era="1920s"] .p-in { padding: 15mm 17mm 12mm; }
+.mag[data-era="1920s"] .m-name { color: var(--ink); letter-spacing: .06em; text-shadow: .5mm .4mm 0 var(--c1); font-size: 58pt; }
+.mag[data-era="1920s"] .c-date { border-color: var(--c1); letter-spacing: .24em; }
+.mag[data-era="1920s"] .c-art, .mag[data-era="1920s"] .t-cover .ph { border: .6mm solid var(--c1); }
+.mag[data-era="1920s"] .c-lead h2, .mag[data-era="1920s"] .f-head, .mag[data-era="1920s"] .t-title, .mag[data-era="1920s"] .a-slogan { text-transform: uppercase; letter-spacing: .07em; }
+.mag[data-era="1920s"] .c-lead h2 { font-size: 25pt; }
+.mag[data-era="1920s"] .c-lines { text-align: center; font-size: 10.5pt; letter-spacing: .04em; }
+.mag[data-era="1920s"] .c-lines li::before { content: "◆ "; color: var(--c1); }
+.mag[data-era="1920s"] .c-badge { width: 72mm; height: 9mm; top: 19mm; right: -15mm; transform: rotate(38deg); background: var(--c3); color: var(--paper); }
+.mag[data-era="1920s"] .c-badge svg { display: none; }
+.mag[data-era="1920s"] .c-badge span { transform: none; max-width: none; font-size: 9pt; letter-spacing: .2em; text-transform: uppercase; }
+.mag[data-era="1920s"] .t-title, .mag[data-era="1920s"] .f-top { text-align: center; }
+.mag[data-era="1920s"] .t-title { color: var(--ink); }
+.mag[data-era="1920s"] .toc .pg { font-family: var(--f-mast); color: var(--c1); }
+.mag[data-era="1920s"] .box { border: .5mm solid var(--c1); outline: .3mm solid var(--c1); outline-offset: 1mm; }
+.mag[data-era="1920s"] .pull { border-color: var(--c1); text-align: center; font-style: italic; font-family: var(--f-body); color: var(--c2); }
+.mag[data-era="1920s"] .a-frame { border: .7mm solid var(--c1); box-shadow: inset 0 0 0 1.4mm var(--paper), inset 0 0 0 1.8mm var(--c1); }
+.mag[data-era="1920s"] .a-slogan { color: var(--c2); font-size: 28pt; }
+
+.mag[data-era="1940s"] .c-mast { background: var(--c1); margin: -10mm -11mm 0; padding: 5mm 11mm 1mm; text-align: left; }
+.mag[data-era="1940s"] .m-name { color: var(--paper); font-size: 92pt; line-height: 1; }
+.mag[data-era="1940s"] .c-date { background: var(--c2); color: var(--paper); border: 0; margin: -3.5mm -11mm 0; padding: 1.6mm 11mm; }
+.mag[data-era="1940s"] .c-art, .mag[data-era="1940s"] .t-cover .ph { border: 1.6mm solid var(--c2); }
+.mag[data-era="1940s"] .c-lead { text-align: left; }
+.mag[data-era="1940s"] .c-lead h2 { text-transform: uppercase; color: var(--c1); font-size: 36pt; }
+.mag[data-era="1940s"] .c-lead p { font-style: normal; font-family: var(--f-body); }
+.mag[data-era="1940s"] .c-lines { font-weight: 500; text-transform: uppercase; font-size: 10.5pt; }
+.mag[data-era="1940s"] .c-lines li::before { content: "★ "; color: var(--c1); }
+.mag[data-era="1940s"] .c-badge { border-radius: 50%; background: var(--c1); color: var(--paper); border: 1mm dashed var(--paper); box-shadow: 0 0 0 .8mm var(--c1); width: 32mm; height: 32mm; top: 50mm; }
+.mag[data-era="1940s"] .c-badge svg { display: none; }
+.mag[data-era="1940s"] .c-badge span { text-transform: uppercase; font-size: 11pt; }
+.mag[data-era="1940s"] .t-title { background: var(--c1); color: var(--paper); padding: 1.5mm 3mm .5mm; font-family: var(--f-mast); font-weight: 400; font-size: 46pt; }
+.mag[data-era="1940s"] .f-head, .mag[data-era="1940s"] .a-slogan, .mag[data-era="1940s"] .letter h3 { text-transform: uppercase; }
+.mag[data-era="1940s"] .f-head { color: var(--c2); }
+.mag[data-era="1940s"] .f-body { column-count: 3; column-gap: 5mm; column-rule: .3mm solid color-mix(in srgb, var(--ink) 35%, transparent); }
+.mag[data-era="1940s"] .box { border: .6mm dashed var(--c1); }
+.mag[data-era="1940s"] .a-frame { border: 2mm solid var(--c2); }
+.mag[data-era="1940s"] .a-slogan { font-family: var(--f-mast); font-weight: 400; font-size: 46pt; }
+
+.mag[data-era="1950s"] .m-name { font-size: 74pt; text-shadow: 1mm 1mm 0 var(--c2); line-height: 1.25; }
+.mag[data-era="1950s"] .c-date { border: 0; background: var(--c2); color: #fff; border-radius: 10mm; padding: 1.4mm 5mm; font-weight: 700; }
+.mag[data-era="1950s"] .c-art { border-radius: 7mm; border: 1mm solid var(--ink); }
+.mag[data-era="1950s"] .c-lead h2 { color: var(--c1); font-size: 32pt; }
+.mag[data-era="1950s"] .c-lines li { padding: 1.4mm 3mm; border-radius: 3mm; background: var(--c4); font-weight: 700; font-size: 10.5pt; }
+.mag[data-era="1950s"] .c-lines li:nth-child(3n+2) { background: var(--c3); }
+.mag[data-era="1950s"] .c-lines li:nth-child(3n) { background: color-mix(in srgb, var(--c2) 45%, #fff); }
+.mag[data-era="1950s"] .c-badge span { color: var(--c1); font-size: 18pt; }
+.mag[data-era="1950s"] .t-title { font-family: var(--f-mast); font-weight: 400; font-size: 44pt; text-shadow: .8mm .8mm 0 var(--c2); }
+.mag[data-era="1950s"] .box { border: 0; border-radius: 5mm; background: color-mix(in srgb, var(--c4) 55%, var(--paper)); }
+.mag[data-era="1950s"] .box h4 { color: var(--c1); }
+.mag[data-era="1950s"] .f-head { color: var(--c1); }
+.mag[data-era="1950s"] .f-fig .ph, .mag[data-era="1950s"] .t-cover .ph { border-radius: 6mm; }
+.mag[data-era="1950s"] .a-frame { border: 0; border-radius: 8mm; background: color-mix(in srgb, var(--c2) 22%, var(--paper)); }
+.mag[data-era="1950s"] .a-brand { font-family: var(--f-mast); font-weight: 400; text-transform: none; letter-spacing: 0; font-size: 22pt; color: var(--c1); }
+
+.mag[data-era="1960s"] .p-cover { grid-template-columns: 56mm minmax(0, 1fr); grid-template-rows: auto auto minmax(0,1fr) auto;
+  grid-template-areas: "mast mast" "date date" "lines art" "lead lead"; padding: 10mm; gap: 4mm 5mm; }
+.mag[data-era="1960s"] .c-mast { text-align: left; }
+.mag[data-era="1960s"] .m-name { color: var(--ink); font-size: 100pt; letter-spacing: -.04em; line-height: .95; }
+.mag[data-era="1960s"] .c-date { border-width: 1.2mm 0 0; }
+.mag[data-era="1960s"] .c-lines { grid-template-columns: 1fr; align-content: start; max-height: none; gap: 4mm; font-family: var(--f-body); font-weight: 600; font-size: 12pt; }
+.mag[data-era="1960s"] .c-lines li { border-top: 1.2mm solid var(--c1); padding-top: 2mm; }
+.mag[data-era="1960s"] .c-lead { text-align: left; }
+.mag[data-era="1960s"] .c-lead h2 { font-size: 40pt; letter-spacing: -.02em; }
+.mag[data-era="1960s"] .c-lead p { font-style: normal; }
+.mag[data-era="1960s"] .c-badge { border-radius: 0; background: var(--c3); width: 30mm; height: 30mm; top: auto; bottom: 46mm; right: 13mm; }
+.mag[data-era="1960s"] .c-badge svg { display: none; }
+.mag[data-era="1960s"] .c-badge span { transform: none; font-size: 11pt; text-transform: uppercase; }
+.mag[data-era="1960s"] .t-title, .mag[data-era="1960s"] .f-head { color: var(--ink); letter-spacing: -.02em; }
+.mag[data-era="1960s"] .t-title { font-size: 52pt; }
+.mag[data-era="1960s"] .f-head { font-size: 46pt; }
+.mag[data-era="1960s"] .f-stand { font-style: normal; font-weight: 600; }
+.mag[data-era="1960s"] .f-body { text-align: left; }
+.mag[data-era="1960s"] .pull { border-width: 1.4mm 0 0; color: var(--ink); }
+.mag[data-era="1960s"] .box { border: 0; border-top: 1.4mm solid var(--c1); padding: 3mm 0 0; }
+.mag[data-era="1960s"] .a-frame { border: 0; text-align: left; padding: 6mm 4mm; }
+.mag[data-era="1960s"] .a-slogan { color: var(--ink); font-size: 44pt; letter-spacing: -.02em; }
+.mag[data-era="1960s"] .a-body, .mag[data-era="1960s"] .a-coupon { margin: 0; }
+
+.mag[data-era="1970s"] .stripes { display: block; position: absolute; left: 0; right: 0; top: 0; height: 9mm; z-index: 1;
+  background: linear-gradient(to bottom, var(--c1) 0 25%, var(--c2) 25% 50%, var(--c4) 50% 75%, var(--c3) 75%); }
+.mag[data-era="1970s"] .p-cover .stripes { top: auto; bottom: 0; height: 7mm; }
+.mag[data-era="1970s"] .p-cover { padding-bottom: 13mm; }
+.mag[data-era="1970s"] .p-in { padding-top: 15mm; }
+.mag[data-era="1970s"] .m-name { color: var(--c2); font-size: 76pt; -webkit-text-stroke: .5mm var(--c4); text-shadow: 1.4mm 1.4mm 0 var(--c4); line-height: 1.2; }
+.mag[data-era="1970s"] .c-art::before, .mag[data-era="1970s"] .f-fig .ph::before { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background-image: var(--noise); background-size: 440px 440px; mix-blend-mode: multiply; opacity: .55; }
+.mag[data-era="1970s"] .c-date { border: 0; color: var(--c4); font-weight: 700; }
+.mag[data-era="1970s"] .c-art { border-radius: 11mm; }
+.mag[data-era="1970s"] .c-lead h2 { color: var(--c4); font-size: 31pt; }
+.mag[data-era="1970s"] .c-lines li { background: var(--c1); color: var(--c4); padding: 1.6mm 3.5mm; border-radius: 6mm; font-weight: 700; font-size: 10.5pt; }
+.mag[data-era="1970s"] .c-lines li:nth-child(even) { background: var(--c3); color: var(--paper); }
+.mag[data-era="1970s"] .c-badge { border-radius: 50%; background: var(--c3); color: var(--paper); width: 34mm; height: 34mm; box-shadow: 1mm 1mm 0 var(--c4); }
+.mag[data-era="1970s"] .c-badge svg { display: none; }
+.mag[data-era="1970s"] .t-title { font-family: var(--f-mast); font-weight: 400; color: var(--c2); text-shadow: .9mm .9mm 0 var(--c4); }
+.mag[data-era="1970s"] .f-head { color: var(--c2); }
+.mag[data-era="1970s"] .f-fig .ph, .mag[data-era="1970s"] .t-cover .ph { border-radius: 8mm; }
+.mag[data-era="1970s"] .box { border: 0; border-radius: 6mm; background: var(--c1); }
+.mag[data-era="1970s"] .box h4 { color: var(--c4); }
+.mag[data-era="1970s"] .pull { border: 0; background: var(--c2); color: var(--paper); padding: 3mm 4mm; border-radius: 5mm; }
+.mag[data-era="1970s"] .a-frame { border: 1.2mm solid var(--c4); border-radius: 10mm; }
+.mag[data-era="1970s"] .a-slogan { font-family: var(--f-mast); font-weight: 400; color: var(--c2); text-shadow: .8mm .8mm 0 var(--c4); }
+
+.mag[data-era="1980s"] .p-cover { background: var(--c4); color: #fff; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto minmax(0,1fr) auto;
+  grid-template-areas: "mast mast" "date date" "lines ." "lead lead"; }
+.mag[data-era="1980s"] .p-cover .c-art { grid-area: auto; position: absolute; inset: 0; z-index: 0; }
+.mag[data-era="1980s"] .c-bar { left: auto; right: 9mm; bottom: 9mm; }
+.mag[data-era="1980s"] .m-name { font-size: 84pt; font-style: italic; transform: skewX(-10deg); line-height: 1.08;
+  background: linear-gradient(180deg, #fff 0%, #c9f6ff 44%, #3a2a78 50%, #ff7ad0 54%, #fff 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(.6mm .6mm 0 var(--c1)); }
+.mag[data-era="1980s"] .c-date { color: var(--c2); border-color: var(--c1); font-size: 12pt; letter-spacing: .1em; }
+.mag[data-era="1980s"] .c-lines { grid-template-columns: 1fr; max-height: none; align-content: start; gap: 3mm; padding-top: 4mm; }
+.mag[data-era="1980s"] .c-lines li { justify-self: start; padding: 1.6mm 3mm; background: var(--c2); color: var(--c4); transform: rotate(-3deg); font-size: 11pt; text-transform: uppercase; font-style: italic; }
+.mag[data-era="1980s"] .c-lines li:nth-child(even) { background: var(--c1); color: #fff; transform: rotate(2deg); }
+.mag[data-era="1980s"] .c-lines li:nth-child(3n) { background: #ffe14d; }
+.mag[data-era="1980s"] .c-lead { text-align: left; margin-right: 34mm; }
+.mag[data-era="1980s"] .c-lead h2 { color: #fff; font-size: 28pt; line-height: 1.3; }
+.mag[data-era="1980s"] .c-lead .hl { background: var(--c1); padding: 0 2mm; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.mag[data-era="1980s"] .c-lead p { color: var(--c2); font-style: normal; font-family: var(--f-label); font-size: 15pt; }
+.mag[data-era="1980s"] .c-badge { top: 62mm; right: 9mm; }
+.mag[data-era="1980s"] .c-badge span { color: #fff; font-size: 11pt; text-transform: uppercase; }
+.mag[data-era="1980s"] .t-title, .mag[data-era="1980s"] .f-head, .mag[data-era="1980s"] .a-slogan { font-style: italic;
+  background: linear-gradient(90deg, var(--c1), var(--c3)); -webkit-background-clip: text; background-clip: text; color: transparent; padding-right: 2mm; }
+.mag[data-era="1980s"] .f-body { column-count: 3; column-gap: 5mm; }
+.mag[data-era="1980s"] .f-kick, .mag[data-era="1980s"] .f-by { font-family: var(--f-label); font-size: 12pt; color: var(--c3); }
+.mag[data-era="1980s"] .toc .pg { color: var(--c1); }
+.mag[data-era="1980s"] .box { background: var(--c4); color: #fff; border: .6mm solid var(--c2); }
+.mag[data-era="1980s"] .box h4 { font-family: var(--f-label); font-weight: 400; font-size: 17pt; color: var(--c2); letter-spacing: .04em; }
+.mag[data-era="1980s"] .pull { border-color: var(--c2); color: var(--c3); font-style: italic; }
+.mag[data-era="1980s"] .p-ad { background: var(--c4); color: #fff; }
+.mag[data-era="1980s"] .a-frame { border: .8mm solid var(--c2); box-shadow: 0 0 0 1.4mm var(--c4), 0 0 0 2.2mm var(--c1); }
+.mag[data-era="1980s"] .a-cut, .mag[data-era="1980s"] .a-coupon { background: var(--c4); }
+.mag[data-era="1980s"] .a-coupon, .mag[data-era="1980s"] .a-form span { border-color: #fff; }
+.mag[data-era="1980s"] .a-brand { color: var(--c2); font-style: italic; }
+
+.mag[data-era="1990s"] .m-name { color: var(--ink); font-size: 96pt; transform: rotate(-3deg); line-height: 1.15; }
+.mag[data-era="1990s"] .c-mast::before { content: ""; position: absolute; left: 18%; right: 22%; top: 46%; height: 30%; background: var(--c1); transform: rotate(-2deg); z-index: -1; }
+.mag[data-era="1990s"] .c-date { border: 0; background: var(--ink); color: var(--paper); padding: 1.2mm 3mm; transform: rotate(1deg); }
+.mag[data-era="1990s"] .c-art { clip-path: polygon(0 2%, 7% 0, 15% 1.5%, 26% .2%, 38% 2%, 51% 0, 63% 1.6%, 76% .3%, 88% 2%, 100% .5%, 99% 18%, 100% 37%, 98.6% 55%, 100% 74%, 98.8% 100%, 86% 98.2%, 72% 100%, 58% 98.4%, 44% 100%, 30% 98%, 16% 99.6%, 0 98%, 1.4% 80%, 0 61%, 1.2% 42%, 0 22%); }
+.mag[data-era="1990s"] .c-bar { left: auto; right: 5mm; bottom: 5mm; }
+.mag[data-era="1990s"] .c-lead { transform: rotate(-1.5deg); }
+.mag[data-era="1990s"] .c-lead h2 { color: var(--paper); text-transform: uppercase; font-size: 24pt; line-height: 1.32; }
+.mag[data-era="1990s"] .c-lead .hl { background: var(--ink); padding: 0 2mm; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.mag[data-era="1990s"] .c-lead p { font-family: var(--f-body); font-style: normal; }
+.mag[data-era="1990s"] .c-lines { font-size: 10.5pt; gap: 2.6mm 5mm; }
+.mag[data-era="1990s"] .c-lines li { justify-self: start; padding: .8mm 2mm; background: #fff; transform: rotate(-1.5deg); }
+.mag[data-era="1990s"] .c-lines li:nth-child(2) { font-family: var(--f-body); font-weight: 400; background: var(--c1); transform: rotate(1.2deg); }
+.mag[data-era="1990s"] .c-lines li:nth-child(3) { font-family: var(--f-mast); font-weight: 400; background: transparent; transform: rotate(2deg); font-size: 12pt; }
+.mag[data-era="1990s"] .c-lines li:nth-child(4) { background: var(--ink); color: var(--paper); transform: rotate(-.6deg); }
+.mag[data-era="1990s"] .c-badge { background: var(--c4); color: var(--ink); width: 40mm; height: 13mm; border-radius: 0; transform: rotate(8deg); top: 62mm; right: 4mm; }
+.mag[data-era="1990s"] .c-badge svg { display: none; }
+.mag[data-era="1990s"] .c-badge span { transform: none; max-width: none; font-family: var(--f-mast); font-weight: 400; font-size: 13pt; }
+.mag[data-era="1990s"] .t-title { transform: rotate(-2deg); text-transform: uppercase; color: var(--ink); }
+.mag[data-era="1990s"] .t-title::after { content: ""; display: block; width: 45mm; height: 3mm; background: var(--c1); margin-top: 1mm; }
+.mag[data-era="1990s"] .f-head { text-transform: uppercase; font-size: 34pt; transform: rotate(-1deg); transform-origin: left; }
+.mag[data-era="1990s"] .f-stand { font-style: normal; line-height: 1.5; }
+.mag[data-era="1990s"] .f-stand .hl { background: var(--c1); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 0 1mm; }
+.mag[data-era="1990s"] .f-fig .ph { clip-path: polygon(0 3%, 10% 0, 24% 2%, 40% .5%, 57% 2.5%, 73% 0, 88% 2%, 100% 0, 99% 30%, 100% 62%, 98.5% 100%, 80% 97.5%, 61% 100%, 42% 97%, 23% 99.5%, 0 97%, 1.5% 65%, 0 33%); }
+.mag[data-era="1990s"] .f-body { text-align: left; }
+.mag[data-era="1990s"] .f-body > p:first-child::first-letter { color: var(--ink); text-shadow: .8mm .8mm 0 var(--c1); }
+.mag[data-era="1990s"] .f-kick { display: inline-block; background: var(--c1); color: var(--ink); padding: .6mm 2mm; }
+.mag[data-era="1990s"] .t-cover figcaption b { color: var(--ink); background: var(--c1); padding: 0 1mm; }
+.mag[data-era="1990s"] .box { background: var(--ink); color: var(--paper); border: 0; transform: rotate(.8deg); }
+.mag[data-era="1990s"] .box h4 { color: var(--c1); }
+.mag[data-era="1990s"] .letter h3 { font-family: var(--f-mast); font-weight: 400; font-size: 24pt; color: var(--ink); }
+.mag[data-era="1990s"] .pull { border: 0; background: var(--c1); color: var(--ink); padding: 3mm; font-family: var(--f-mast); font-weight: 400; transform: rotate(-1deg); }
+.mag[data-era="1990s"] .a-frame { border: 1.2mm solid var(--ink); transform: rotate(-.6deg); }
+.mag[data-era="1990s"] .a-slogan { font-family: var(--f-mast); font-weight: 400; color: var(--ink); background: var(--c1); padding: 1mm 2mm; justify-self: center; }
