@@ -1,5 +1,8 @@
-node_modules/
+__pycache__/
+*.pyc
+.venv/
+downloads/
+*.csv
+*.json
 .env*
-!.env.example
-site/feed.json
 .DS_Store
