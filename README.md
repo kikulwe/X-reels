@@ -6,7 +6,7 @@ Crawl a website, extract data with CSS selectors, and download its pictures to y
 
 ## Web app (phone)
 
-**https://kikulwe.github.io/x-reels/**
+**https://kikulwe.github.io/X-reels/**
 
 Paste a link → tap **Scrape** → tick pictures → **Save**. On a phone, Save opens the share sheet
 (choose *Save to Photos* / *Save image*); on a computer, one picture downloads directly and several
