@@ -6,7 +6,7 @@ const MAX_PHOTOS = 100;
 const AI_STORE = "magmaker:v1:ai", GALLERY_STORE = "magmaker:v1:gallery";
 const lib = [];               // [{ id, src, w, h, title, caption, mood, score, skipped }]
 let gallery = null;           // { sections: [{ title, intro, ids: [] }] }
-const aiOpts = { key: "", model: "", theme: "", tone: "era" };
+const aiOpts = { provider: "gemini", key: "", model: "", claudeKey: "", claudeModel: "claude-haiku-5-5", theme: "", tone: "era" };
 
 /* ---------- photo storage (IndexedDB: 100 photos are far too big for localStorage) ---------- */
 const idb = (() => {
@@ -206,6 +206,50 @@ async function gemini(parts, { json = true, temperature = 0.8 } = {}) {
   throw new Error("Gemini stayed busy. Wait a minute and try again.");
 }
 
+/* ---------- Claude (paid, called straight from the browser with the user's own key) ---------- */
+const parseJson = text => {
+  const t = text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+  try { return JSON.parse(t); } catch {}
+  const a = Math.min(...["[", "{"].map(c => t.indexOf(c)).filter(i => i >= 0));
+  const b = Math.max(t.lastIndexOf("]"), t.lastIndexOf("}"));
+  return JSON.parse(t.slice(a, b + 1));
+};
+
+async function claude(parts, { temperature = 0.8 } = {}) {
+  if (!aiOpts.claudeKey) throw new Error("Add your Claude API key first (AI settings).");
+  const content = parts.map(p => p.inline_data
+    ? { type: "image", source: { type: "base64", media_type: p.inline_data.mime_type, data: p.inline_data.data } }
+    : { type: "text", text: p.text });
+  content.push({ type: "text", text: "Reply with only the JSON, no other text." });
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": aiOpts.claudeKey, "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true" },
+      body: JSON.stringify({ model: aiOpts.claudeModel || "claude-haiku-5-5", max_tokens: 8000, temperature, messages: [{ role: "user", content }] }),
+    });
+    const data = await r.json().catch(() => ({}));
+    const msg = data.error?.message || `HTTP ${r.status}`;
+    if (r.status === 429 || r.status === 529 || r.status === 503) {
+      const secs = +(r.headers.get("retry-after") || 0) || 15 * (attempt + 1);
+      setStatus(`Claude is busy or at your rate limit. Waiting ${secs}s…`);
+      await sleep(secs * 1000); continue;
+    }
+    if (r.status === 401) throw new Error("That Claude API key doesn't work. Check it in AI settings.");
+    if (/credit balance/i.test(msg)) throw new Error("Your Claude account has no credit. Add a few dollars at console.anthropic.com → Billing.");
+    if (r.status === 404 || /model/i.test(msg) && r.status === 400) throw new Error(`Claude model "${aiOpts.claudeModel}" isn't available on your key. Pick another in AI settings.`);
+    if (!r.ok) throw new Error(msg);
+    if (data.stop_reason === "refusal") { const e = new Error("blocked"); e.blocked = true; throw e; }
+    const text = (data.content || []).filter(c => c.type === "text").map(c => c.text).join("");
+    try { return parseJson(text); }
+    catch { if (attempt < 2) continue; throw new Error("Claude sent back something unreadable. Try again."); }
+  }
+  throw new Error("Claude stayed busy. Wait a minute and try again.");
+}
+
+const callAI = (parts, opts) => aiOpts.provider === "claude" ? claude(parts, opts) : gemini(parts, opts);
+const hasKey = () => aiOpts.provider === "claude" ? !!aiOpts.claudeKey : !!aiOpts.key;
+
 // Small JPEG copy for the AI (keeps requests fast and inside the free limits)
 async function aiThumb(src, max = 640) {
   const i = new Image(); i.src = src; await i.decode();
@@ -247,7 +291,7 @@ Return only a JSON array.` }];
     parts.push({ text: `Photo id: ${p.id}` });
     parts.push({ inline_data: { mime_type: "image/jpeg", data: await aiThumb(p.src) } });
   }
-  return gemini(parts, { temperature: 0.7 });
+  return callAI(parts, { temperature: 0.7 });
 }
 
 async function describeAll(onProgress) {
@@ -297,12 +341,12 @@ Here is an example issue in the same style. Match its format and roughly its len
 ${JSON.stringify(sample)}
 
 The feature story ("fBody") should be about what the photos show, 4-6 paragraphs. Invent a fitting magazine name, brand and product. Never name or identify real people in the photos. Keep it tasteful and suitable for a mainstream magazine.`;
-  return gemini([{ text: prompt }], { temperature: 0.9 });
+  return callAI([{ text: prompt }], { temperature: 0.9 });
 }
 
 async function buildIssue() {
   if (!lib.length) return;
-  if (!aiOpts.key) { $("aiBox").open = true; $("aiKey").focus(); setStatus("Paste your free Gemini API key first.", true); return; }
+  if (!hasKey()) { $("aiBox").open = true; (aiOpts.provider === "claude" ? $("aiClaudeKey") : $("aiKey")).focus(); setStatus(`Paste your ${aiOpts.provider === "claude" ? "Claude" : "free Gemini"} API key first.`, true); return; }
   $("aiGo").disabled = true;
   try {
     await describeAll((done, total) => total && setStatus(`Looking at your photos… ${done}/${total}`));
@@ -392,6 +436,24 @@ function wireAi() {
     saveAi();
   };
   $("aiTone").onchange = e => { aiOpts.tone = e.target.value; saveAi(); };
+  const showProvider = () => {
+    $("aiProvider").value = aiOpts.provider;
+    document.querySelectorAll("[data-prov]").forEach(el => { el.hidden = el.dataset.prov !== aiOpts.provider; });
+  };
+  $("aiProvider").onchange = e => { aiOpts.provider = e.target.value; saveAi(); showProvider(); };
+  $("aiClaudeKey").value = aiOpts.claudeKey;
+  $("aiClaudeKey").addEventListener("input", e => { aiOpts.claudeKey = e.target.value.trim(); saveAi(); });
+  if (![...$("aiClaudeModel").options].some(o => o.value === aiOpts.claudeModel)) $("aiClaudeModel").add(new Option(aiOpts.claudeModel, aiOpts.claudeModel), 0);
+  $("aiClaudeModel").value = aiOpts.claudeModel;
+  $("aiClaudeModel").onchange = e => {
+    if (e.target.value === "__custom") {
+      const m = prompt("Claude model ID (e.g. claude-haiku-5-5):", aiOpts.claudeModel);
+      if (m) { aiOpts.claudeModel = m.trim(); if (![...e.target.options].some(o => o.value === aiOpts.claudeModel)) e.target.add(new Option(aiOpts.claudeModel, aiOpts.claudeModel), 0); }
+      e.target.value = aiOpts.claudeModel;
+    } else aiOpts.claudeModel = e.target.value;
+    saveAi();
+  };
+  showProvider();
 
   $("libFiles").onchange = async e => { report(await addFiles([...e.target.files])); e.target.value = ""; };
   $("libAddUrls").onclick = async () => { const urls = extractUrls($("libUrls").value); if (!urls.length) return setStatus("Paste one or more picture links first.", true); report(await addUrls(urls)); $("libUrls").value = ""; };

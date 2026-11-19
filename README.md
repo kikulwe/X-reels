@@ -35,7 +35,9 @@ Make a vintage magazine (cover, contents, feature story, advert, plus AI-written
 3. Tap **Write my magazine**. Gemini describes every photo, picks the cover/feature/advert photos, writes all the text in the decade's style, and adds photo pages (3–4 photos per page, each with a title and description). About 1–2 minutes for 100 photos on the free plan.
 4. Tap any photo on a photo page to edit its title or description, or remove it. Photos are kept in the browser (IndexedDB).
 
-Photos are sent to Google's Gemini API to be described. Photos its safety filter refuses are skipped and greyed out in the library.
+**Claude instead of Gemini:** in AI settings choose **Claude**, paste an API key from https://console.anthropic.com/settings/keys and add a little credit. Claude Haiku 5.5 (default) costs roughly 1–2 US cents for a 100-photo issue; Sonnet 5.5 writes better and costs about 20× more. Calls go straight from your browser to Anthropic, so only use your key on your own device.
+
+Photos are sent to the chosen AI (Google Gemini or Anthropic Claude) to be described. Photos its safety filter refuses are skipped and greyed out in the library.
 
 Headlines and text shrink automatically to fit; if something is still too long, a message says what to shorten. Your text and photos stay in your browser for next time. Paper size (A4 or US Letter) and the aged-paper look are under **Page and print**.
 

@@ -72,6 +72,7 @@
   .lempty, .hint { margin: 0; color: var(--muted); font-size: 12.5px; }
   .hint a { color: var(--accent); }
   #aiGo { width: 100%; }
+  [data-prov][hidden] { display: none !important; }
   dialog { border: 1px solid var(--line); border-radius: 16px; background: var(--card); color: var(--text); padding: 14px; width: min(440px, 92vw); }
   dialog::backdrop { background: rgba(0,0,0,.6); }
   dialog form { display: grid; gap: 10px; }
@@ -138,12 +139,25 @@
       <p class="hint">The AI looks at every photo, writes a caption for each, picks the cover, writes all the text in the chosen decade's style and adds photo pages. About 1 to 2 minutes for 100 photos on the free plan.</p>
     </div></details>
     <details class="group" id="aiBox"><summary>AI settings</summary><div class="gbody">
+      <label class="field"><span>AI</span><select id="aiProvider">
+        <option value="gemini">Google Gemini (free)</option>
+        <option value="claude">Claude (paid: about 1–2 US cents per issue with Haiku)</option></select></label>
+      <div data-prov="claude" hidden style="display:grid;gap:10px">
+        <label class="field"><span>Claude API key (stays on this device)</span><input id="aiClaudeKey" type="password" autocomplete="off" placeholder="sk-ant-…"></label>
+        <p class="hint">Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> and add a few dollars of credit under Billing. Photos are sent to Anthropic to be described. Only use this key on your own device.</p>
+        <label class="field"><span>Model</span><select id="aiClaudeModel">
+          <option value="claude-haiku-5-5">Claude Haiku 5.5 (cheapest, fast)</option>
+          <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (better writing, about 20× the cost)</option>
+          <option value="__custom">Other model…</option></select></label>
+      </div>
+      <div data-prov="gemini" style="display:grid;gap:10px">
       <label class="field"><span>Gemini API key (free; stays on this device)</span><input id="aiKey" type="password" autocomplete="off" placeholder="AIza…"></label>
       <p class="hint">Get one free at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>: sign in with Google, tap “Create API key”, copy it here. Photos are sent to Google's Gemini to be described.</p>
       <label class="field"><span>Model (picked automatically from your key)</span><select id="aiModel">
         <option value="">Automatic: newest available</option>
         <option value="__custom">Other model…</option></select></label>
       <p class="hint" id="aiModelNote">Paste your key and the list fills with the models it can use.</p>
+      </div>
       <label class="field"><span>What's the issue about? (optional)</span><input id="aiTheme" autocomplete="off" placeholder="e.g. our trip to Zanzibar, street style in Kampala"></label>
       <label class="field"><span>Writing style</span><select id="aiTone">
         <option value="era">Voice of the decade</option><option value="editorial">Editorial</option><option value="fashion">Fashion &amp; style</option>
