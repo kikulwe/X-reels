@@ -119,6 +119,7 @@
 
 <div class="dock">
   <button class="ghost" id="clear" type="button">Clear</button>
+  <button class="ghost" id="toMag" type="button" disabled>To magazine</button>
   <button id="save" type="button" disabled>Save selected</button>
 </div>
 
@@ -425,6 +426,7 @@ function updateCount() {
   const s = state.selected.size, vis = visible();
   $("count").textContent = `${imgs} picture${imgs === 1 ? "" : "s"} · ${vids} video${vids === 1 ? "" : "s"}${s ? ` · ${s} selected` : ""}`;
   $("save").disabled = !s;
+  $("toMag").disabled = !s;
   $("save").textContent = s ? `Save ${s}` : "Save selected";
   $("toggleAll").textContent = vis.length && vis.every(i => state.selected.has(i)) ? "Select none" : "Select all";
 }
@@ -558,6 +560,14 @@ async function saveItems(items) {
   const failed = items.length - files.length - blocked.length;
   setStatus(`Saved ${files.length} file(s)${failed > 0 ? ` (${failed} failed)` : ""}.${blockedNote}`);
 }
+
+// Send selected pictures to the Magazine Maker's photo library (max 100)
+$("toMag").onclick = () => {
+  const urls = [...state.selected].filter(i => i.type === "image").map(i => i.src).slice(0, 100);
+  if (!urls.length) return setStatus("Select some pictures first (videos can't go in the magazine).", true);
+  try { localStorage.setItem("magmaker:import", JSON.stringify(urls)); } catch {}
+  location.href = "magazine/";
+};
 
 $("save").onclick = async () => { $("save").disabled = true; await saveItems([...state.selected]); updateCount(); };
 

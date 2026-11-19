@@ -12,7 +12,8 @@ const FORM = [
   ["Advert", "ad", [["aBrand", "Brand"], ["aProduct", "Product"], ["aSlogan", "Slogan"], ["aBody", "Advert text", 4], ["aCoupon", "Coupon offer", 2], ["aFine", "Fine print", 2]]]
 ];
 const LABELS = { name: "masthead", lead: "lead story", leadSub: "teaser", lines: "cover lines", toc: "contents", letter: "editor's letter", box: "small box",
-  fHead: "feature headline", fStand: "intro line", fBody: "story text", aSlogan: "slogan", aBody: "advert text" };
+  fHead: "feature headline", fStand: "intro line", fBody: "story text", aSlogan: "slogan", aBody: "advert text",
+  caption: "a photo caption", sectionTitle: "a section title", sectionIntro: "a section intro" };
 
 function load() {
   try {
@@ -68,8 +69,10 @@ function coverHtml(E, t) {
 function contentsHtml(E, t) {
   const pages = [12, 19, 26, 33, 40, 47];
   const main = t.fHead || t.lead;
+  const gp = galleryPages();
+  const sectionItems = gp.map((g, i) => g.first ? `<li><span class="pg">${4 + i}</span><span class="tx"><b>${esc(g.section.title)}</b>${g.section.intro ? `<i>${esc(g.section.intro)}</i>` : ""}</span></li>` : "").filter(Boolean);
   const items = [`<li><span class="pg">3</span><span class="tx"><b>${esc(main)}</b>${t.fStand ? `<i>${esc(t.fStand)}</i>` : ""}</span></li>`]
-    .concat(linesOf(t.lines).filter(l => l !== main).map((l, i) => `<li><span class="pg">${pages[i]}</span><span class="tx"><b>${esc(l)}</b></span></li>`));
+    .concat(gp.length ? sectionItems.slice(0, 7) : linesOf(t.lines).filter(l => l !== main).map((l, i) => `<li><span class="pg">${pages[i]}</span><span class="tx"><b>${esc(l)}</b></span></li>`));
   return `<section class="page p-in p-contents">${deco}${run(t)}
     <h2 class="t-title">${esc(E.tocTitle)}</h2>
     <div class="t-main">
@@ -128,7 +131,9 @@ function render() {
   root.className = "mag" + (state.aged ? " aged" : "");
   root.dataset.era = state.era;
   Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
-  root.innerHTML = [coverHtml, contentsHtml, featureHtml, adHtml].map(f => `<div class="sheet">${f(E, t)}</div>`).join("");
+  const gp = galleryPages();
+  root.innerHTML = [coverHtml(E, t), contentsHtml(E, t), featureHtml(E, t), ...gp.map((g, i) => galleryHtml(E, t, g, 4 + i)), adHtml(E, t)]
+    .map(h => `<div class="sheet">${h}</div>`).join("");
   $("pagestyle").textContent = `@page { size: ${state.size === "Letter" ? "letter" : "A4"}; margin: 0; }`;
   layout();
   fitAll();
@@ -290,7 +295,9 @@ function wire() {
 load();
 buildEditor();
 wire();
+wireAi();
 fillForm();
 setTab("edit");
 render();
 refit();
+initAi();

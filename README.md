@@ -21,12 +21,21 @@ Code is in `site/`; pushes to `main` deploy automatically via `.github/workflows
 
 **https://kikulwe.github.io/X-reels/magazine/**
 
-Make a 4-page vintage magazine (cover, contents, feature story, advert) and save it as a PDF.
+Make a vintage magazine (cover, contents, feature story, advert, plus AI-written photo pages) and save it as a PDF.
 
 1. Pick a decade: 1920s, 1940s, 1950s, 1960s, 1970s, 1980s or 1990s. Each has its own fonts, colours, layout and original artwork, plus sample text written in the style of the time.
 2. Type your own magazine name, headlines, story and advert, or keep the sample text.
 3. Tap **Add photo** (or tap a picture in the preview) to use your own photos for the cover, the feature and the advert. Without a photo, the decade's drawing is used.
 4. Tap **Download PDF** and choose **Save as PDF** in the print screen. The file is named after the issue, e.g. `atomic-home-june-1957.pdf`.
+
+### AI issue from up to 100 photos
+
+1. In **Photos for the AI issue**, add up to 100 pictures: **From device**, **Paste** (or Ctrl+V anywhere), paste picture links, or select pictures in the Scraper and tap **To magazine**.
+2. In **AI settings**, paste a free Gemini API key from https://aistudio.google.com/apikey (it stays on your device). Optionally say what the issue is about and pick a writing style.
+3. Tap **Write my magazine**. Gemini describes every photo, picks the cover/feature/advert photos, writes all the text in the decade's style, and adds photo pages (3–4 photos per page, each with a title and description). About 1–2 minutes for 100 photos on the free plan.
+4. Tap any photo on a photo page to edit its title or description, or remove it. Photos are kept in the browser (IndexedDB).
+
+Photos are sent to Google's Gemini API to be described. Photos its safety filter refuses are skipped and greyed out in the library.
 
 Headlines and text shrink automatically to fit; if something is still too long, a message says what to shorten. Your text and photos stay in your browser for next time. Paper size (A4 or US Letter) and the aged-paper look are under **Page and print**.
 

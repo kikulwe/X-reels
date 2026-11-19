@@ -63,6 +63,20 @@
   button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
   button:disabled { opacity: .45; }
   #preview { padding: 14px 0 4px; }
+  .cnt { color: var(--muted); font-weight: 400; margin-left: auto; margin-right: 10px; }
+  .lib { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 5px; max-height: 260px; overflow-y: auto; }
+  .lt { position: relative; aspect-ratio: 1; border-radius: 8px; background: var(--bg) center / cover no-repeat; cursor: pointer; }
+  .lt.skip { opacity: .35; }
+  .lx { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; padding: 0; border-radius: 50%; background: rgba(0,0,0,.65); font-size: 14px; line-height: 20px; }
+  .ld { position: absolute; left: 3px; bottom: 3px; font-size: 10px; background: var(--accent); border-radius: 50%; width: 16px; height: 16px; display: grid; place-items: center; }
+  .lempty, .hint { margin: 0; color: var(--muted); font-size: 12.5px; }
+  .hint a { color: var(--accent); }
+  #aiGo { width: 100%; }
+  dialog { border: 1px solid var(--line); border-radius: 16px; background: var(--card); color: var(--text); padding: 14px; width: min(440px, 92vw); }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  dialog form { display: grid; gap: 10px; }
+  dialog img { width: 100%; max-height: 40vh; object-fit: contain; border-radius: 10px; background: #000; }
+  dialog .row { display: flex; gap: 8px; } dialog .row button { flex: 1; padding: 10px 8px; font-size: 13.5px; }
   .sheet { position: relative; width: 100%; max-width: 640px; margin: 0 auto 16px; overflow: hidden; border-radius: 3px; box-shadow: 0 8px 28px rgba(0,0,0,.55); }
   .sheet .page { transform-origin: 0 0; }
   .mag.measuring .page * { transform: none !important; }
@@ -98,7 +112,7 @@
 <header class="no-print">
   <nav class="apps"><a href="../">Scraper</a><a class="on" href="./">Magazine Maker</a></nav>
   <h1>Magazine Maker</h1>
-  <p>Pick a decade, write your stories, add photos, then save a 4-page vintage magazine as a PDF.</p>
+  <p>Pick a decade, add up to 100 photos and let AI write the issue around them, or write it yourself. Save it as a PDF.</p>
 </header>
 
 <div class="eras no-print" id="eras" role="toolbar" aria-label="Decade"></div>
@@ -109,6 +123,32 @@
 
 <main class="work">
   <form id="editor" class="no-print" onsubmit="return false">
+    <details class="group" id="libBox" open><summary>Photos for the AI issue <span class="cnt" id="libCount">0/100</span></summary><div class="gbody">
+      <div class="pbtns">
+        <label class="btn">From device<input type="file" accept="image/*" id="libFiles" multiple hidden></label>
+        <button type="button" class="ghost" id="libPaste">Paste</button>
+        <button type="button" class="ghost" id="libClear">Remove all</button>
+      </div>
+      <label class="field"><span>Or paste picture links, one per line</span><textarea id="libUrls" rows="2" placeholder="https://…/photo.jpg"></textarea></label>
+      <button type="button" class="ghost" id="libAddUrls">Add links</button>
+      <div class="lib" id="lib"></div>
+      <p class="hint" id="libNote"></p>
+      <button type="button" id="aiGo" disabled>Add photos first</button>
+      <button type="button" class="ghost" id="aiDrop">Remove photo pages</button>
+      <p class="hint">The AI looks at every photo, writes a caption for each, picks the cover, writes all the text in the chosen decade's style and adds photo pages. About 1 to 2 minutes for 100 photos on the free plan.</p>
+    </div></details>
+    <details class="group" id="aiBox"><summary>AI settings</summary><div class="gbody">
+      <label class="field"><span>Gemini API key (free; stays on this device)</span><input id="aiKey" type="password" autocomplete="off" placeholder="AIza…"></label>
+      <p class="hint">Get one free at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>: sign in with Google, tap “Create API key”, copy it here. Photos are sent to Google's Gemini to be described.</p>
+      <label class="field"><span>Model</span><select id="aiModel">
+        <option value="gemini-2.5-flash">Gemini 2.5 Flash (best, free)</option>
+        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite (faster, higher free limits)</option>
+        <option value="__custom">Other model…</option></select></label>
+      <label class="field"><span>What's the issue about? (optional)</span><input id="aiTheme" autocomplete="off" placeholder="e.g. our trip to Zanzibar, street style in Kampala"></label>
+      <label class="field"><span>Writing style</span><select id="aiTone">
+        <option value="era">Voice of the decade</option><option value="editorial">Editorial</option><option value="fashion">Fashion &amp; style</option>
+        <option value="travel">Travel</option><option value="poetic">Poetic</option><option value="playful">Playful</option><option value="documentary">Documentary</option></select></label>
+    </div></details>
     <div id="fields"></div>
     <details class="group"><summary>Page and print</summary><div class="gbody">
       <label class="field"><span>Paper size</span><select id="optSize"><option value="A4">A4</option><option value="Letter">US Letter</option></select></label>
@@ -120,6 +160,15 @@
   </div>
 </main>
 
+<dialog id="photoEdit" class="no-print">
+  <form method="dialog">
+    <img id="peImg" alt="">
+    <label class="field"><span>Title</span><input id="peTitle" autocomplete="off"></label>
+    <label class="field"><span>Description</span><textarea id="peCaption" rows="4"></textarea></label>
+    <div class="row"><button value="cancel" class="ghost">Cancel</button><button value="remove" class="ghost" id="peRemove" type="button">Remove from pages</button><button value="save" id="peSave">Save</button></div>
+  </form>
+</dialog>
+
 <div class="dock no-print">
   <div class="status" id="status" aria-live="polite"></div>
   <div class="row">
@@ -130,6 +179,7 @@
 
 <script src="eras.js"></script>
 <script src="art.js"></script>
+<script src="ai.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
