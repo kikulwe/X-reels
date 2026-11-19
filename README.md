@@ -31,7 +31,7 @@ Make a vintage magazine (cover, contents, feature story, advert, plus AI-written
 ### AI issue from up to 100 photos
 
 1. In **Photos for the AI issue**, add up to 100 pictures: **From device**, **Paste** (or Ctrl+V anywhere), paste picture links, or select pictures in the Scraper and tap **To magazine**.
-2. In **AI settings**, paste a free Gemini API key from https://aistudio.google.com/apikey (it stays on your device). Optionally say what the issue is about and pick a writing style.
+2. In **AI settings**, paste a free Gemini API key from https://aistudio.google.com/apikey (it stays on your device). The model list fills automatically with the models your key can use, newest first; if one is retired or has no free quota, the app switches to the next. Optionally say what the issue is about and pick a writing style.
 3. Tap **Write my magazine**. Gemini describes every photo, picks the cover/feature/advert photos, writes all the text in the decade's style, and adds photo pages (3–4 photos per page, each with a title and description). About 1–2 minutes for 100 photos on the free plan.
 4. Tap any photo on a photo page to edit its title or description, or remove it. Photos are kept in the browser (IndexedDB).
 

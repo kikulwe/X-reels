@@ -6,7 +6,7 @@ const MAX_PHOTOS = 100;
 const AI_STORE = "magmaker:v1:ai", GALLERY_STORE = "magmaker:v1:gallery";
 const lib = [];               // [{ id, src, w, h, title, caption, mood, score, skipped }]
 let gallery = null;           // { sections: [{ title, intro, ids: [] }] }
-const aiOpts = { key: "", model: "gemini-2.5-flash", theme: "", tone: "era" };
+const aiOpts = { key: "", model: "", theme: "", tone: "era" };
 
 /* ---------- photo storage (IndexedDB: 100 photos are far too big for localStorage) ---------- */
 const idb = (() => {
@@ -112,19 +112,76 @@ function renderLib() {
 /* ---------- Gemini ---------- */
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let lastCall = 0;
+const API = "https://generativelanguage.googleapis.com/v1beta";
+
+// Google retires model names often, so ask which ones this key can use and rank them:
+// newest version first, Flash before Flash-Lite, stable before preview; skip image/audio/live/TTS models.
+let modelCache = null;
+const verOf = id => (id.match(/gemini-(\d+(?:\.\d+)?)/) || [0, 0])[1] * 1;
+function modelRank(id) {
+  return verOf(id) * 100 - (/lite/.test(id) ? 10 : 0) - (/preview|exp/.test(id) ? 30 : 0) - (/-\d{3}$|\d{2}-\d{2}/.test(id) ? 1 : 0) + (/pro/.test(id) ? -5 : 0);
+}
+async function listModels(force) {
+  if (modelCache && !force) return modelCache;
+  if (!aiOpts.key) return [];
+  const r = await fetch(`${API}/models?pageSize=1000&key=${encodeURIComponent(aiOpts.key)}`);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const m = data.error?.message || `HTTP ${r.status}`;
+    throw new Error(/API key|API_KEY/i.test(m) ? "That Gemini API key doesn't work. Check it in AI settings." : m);
+  }
+  modelCache = (data.models || [])
+    .filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
+    .map(m => m.name.replace(/^models\//, ""))
+    .filter(id => /^gemini-/.test(id) && !/image|audio|live|tts|embed|vision|robotics|computer|thinking|learnlm|nano|veo|imagen/i.test(id))
+    .sort((a, b) => modelRank(b) - modelRank(a));
+  return modelCache;
+}
+async function refreshModels(force) {
+  const sel = $("aiModel");
+  try {
+    const ids = await listModels(force);
+    if (!ids.length) return;
+    if (!ids.includes(aiOpts.model)) { aiOpts.model = ids[0]; saveAi(); }
+    sel.innerHTML = ids.map((id, i) => `<option value="${id}">${id}${i === 0 ? " (recommended)" : ""}</option>`).join("") + `<option value="__custom">Other model…</option>`;
+    sel.value = aiOpts.model;
+    $("aiModelNote").textContent = `${ids.length} models available on your key.`;
+  } catch (e) { $("aiModelNote").textContent = e.message; }
+}
+// Called when a model is missing or has no free quota: move to the next one on the list
+async function nextModel(reason) {
+  const ids = await listModels(true).catch(() => []);
+  const tried = (nextModel.tried ||= new Set()); tried.add(aiOpts.model);
+  const next = ids.find(id => !tried.has(id));
+  if (!next) return false;
+  setStatus(`${reason} Switching to ${next}…`);
+  aiOpts.model = next; saveAi(); refreshModels();
+  return true;
+}
 
 async function gemini(parts, { json = true, temperature = 0.8 } = {}) {
   if (!aiOpts.key) throw new Error("Add your free Gemini API key first (AI settings).");
+  if (!aiOpts.model) { const ids = await listModels(); aiOpts.model = ids[0] || "gemini-3.5-flash"; saveAi(); refreshModels(); }
   const body = { contents: [{ role: "user", parts }], generationConfig: { temperature } };
   if (json) body.generationConfig.responseMimeType = "application/json";
-  if (/2\.5-flash/.test(aiOpts.model)) body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    delete body.generationConfig.thinkingConfig;
+    if (/2\.5-flash/.test(aiOpts.model)) body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
     const wait = 6500 - (Date.now() - lastCall);   // free tier is ~10 requests a minute
     if (wait > 0) await sleep(wait);
     lastCall = Date.now();
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(aiOpts.model)}:generateContent?key=${encodeURIComponent(aiOpts.key)}`,
+    const r = await fetch(`${API}/models/${encodeURIComponent(aiOpts.model)}:generateContent?key=${encodeURIComponent(aiOpts.key)}`,
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await r.json().catch(() => ({}));
+    const msg = data.error?.message || "";
+    // model retired / not on this key, or a model with no free quota ("limit: 0"): try the next one
+    if (r.status === 404 || (r.status === 400 && /not (found|supported)|unsupported model/i.test(msg))) {
+      if (await nextModel(`Model ${aiOpts.model} isn't available.`)) { attempt--; continue; }
+      throw new Error("None of the Gemini models on your key worked. Check the key in AI settings.");
+    }
+    if (r.status === 429 && /limit: 0\b/.test(msg)) {
+      if (await nextModel(`${aiOpts.model} has no free quota on your key.`)) { attempt--; continue; }
+    }
     if (r.status === 429 || r.status === 503) {
       const d = (data.error?.details || []).find(x => x.retryDelay)?.retryDelay;
       const secs = d ? parseFloat(d) : 20 * (attempt + 1);
@@ -135,7 +192,6 @@ async function gemini(parts, { json = true, temperature = 0.8 } = {}) {
     if (!r.ok) {
       const m = data.error?.message || `HTTP ${r.status}`;
       if (r.status === 400 && /API key/i.test(m)) throw new Error("That Gemini API key doesn't work. Check it in AI settings.");
-      if (r.status === 404) throw new Error(`Model "${aiOpts.model}" wasn't found. Pick another model in AI settings.`);
       throw new Error(m);
     }
     const cand = data.candidates?.[0];
@@ -320,12 +376,16 @@ function editPhoto(id) {
 /* ---------- wiring ---------- */
 function wireAi() {
   loadAi();
+  if (/^gemini-(1|2)\./.test(aiOpts.model)) aiOpts.model = "";   // retired generations
   $("aiKey").value = aiOpts.key; $("aiModel").value = aiOpts.model; $("aiTheme").value = aiOpts.theme; $("aiTone").value = aiOpts.tone;
-  if (![...$("aiModel").options].some(o => o.value === aiOpts.model)) $("aiModel").add(new Option(aiOpts.model, aiOpts.model, true, true));
+  if (aiOpts.model && ![...$("aiModel").options].some(o => o.value === aiOpts.model)) $("aiModel").add(new Option(aiOpts.model, aiOpts.model, true, true));
+  if (aiOpts.key) refreshModels();
+  let keyTimer;
+  $("aiKey").addEventListener("input", () => { clearTimeout(keyTimer); modelCache = null; keyTimer = setTimeout(() => refreshModels(true), 700); });
   ["aiKey", "aiTheme"].forEach(k => $(k).addEventListener("input", e => { aiOpts[k === "aiKey" ? "key" : "theme"] = e.target.value.trim(); saveAi(); }));
   $("aiModel").onchange = e => {
     if (e.target.value === "__custom") {
-      const m = prompt("Gemini model name (e.g. gemini-2.5-flash):", aiOpts.model);
+      const m = prompt("Gemini model name (e.g. gemini-3.5-flash):", aiOpts.model);
       if (m) { aiOpts.model = m.trim(); if (![...e.target.options].some(o => o.value === aiOpts.model)) e.target.add(new Option(aiOpts.model, aiOpts.model), 0); }
       e.target.value = aiOpts.model;
     } else aiOpts.model = e.target.value;

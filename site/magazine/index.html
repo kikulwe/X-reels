@@ -140,10 +140,10 @@
     <details class="group" id="aiBox"><summary>AI settings</summary><div class="gbody">
       <label class="field"><span>Gemini API key (free; stays on this device)</span><input id="aiKey" type="password" autocomplete="off" placeholder="AIza…"></label>
       <p class="hint">Get one free at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>: sign in with Google, tap “Create API key”, copy it here. Photos are sent to Google's Gemini to be described.</p>
-      <label class="field"><span>Model</span><select id="aiModel">
-        <option value="gemini-2.5-flash">Gemini 2.5 Flash (best, free)</option>
-        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite (faster, higher free limits)</option>
+      <label class="field"><span>Model (picked automatically from your key)</span><select id="aiModel">
+        <option value="">Automatic: newest available</option>
         <option value="__custom">Other model…</option></select></label>
+      <p class="hint" id="aiModelNote">Paste your key and the list fills with the models it can use.</p>
       <label class="field"><span>What's the issue about? (optional)</span><input id="aiTheme" autocomplete="off" placeholder="e.g. our trip to Zanzibar, street style in Kampala"></label>
       <label class="field"><span>Writing style</span><select id="aiTone">
         <option value="era">Voice of the decade</option><option value="editorial">Editorial</option><option value="fashion">Fashion &amp; style</option>
